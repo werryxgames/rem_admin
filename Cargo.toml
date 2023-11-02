@@ -1,0 +1,25 @@
+[package]
+name = "rem_admin"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["server", "client"]
+core = []
+client = ["core"]
+server = ["core"]
+
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
+required-features = ["server"]
+
+[[bin]]
+name = "client"
+path = "src/client/main.rs"
+required-features = ["client"]
+
+[dependencies]
+egui = "0.23"
+dialog = "0.3"
+machine-uid = "0.5"
