@@ -2,12 +2,12 @@
 name = "rem_admin"
 version = "0.1.0"
 edition = "2021"
+default-run = "rem_admin"
 
 [features]
 default = ["server", "client"]
-core = []
-client = ["core"]
-server = ["core"]
+server = []
+client = []
 
 [[bin]]
 name = "server"
@@ -18,6 +18,10 @@ required-features = ["server"]
 name = "client"
 path = "src/client/main.rs"
 required-features = ["client"]
+
+[[bin]]
+name = "rem_admin"
+path = "src/main.rs"
 
 [dependencies]
 egui = "0.23"
