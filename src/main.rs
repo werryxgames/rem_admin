@@ -4,6 +4,8 @@ use std::io::{Error, ErrorKind};
 pub mod server;
 #[cfg(feature = "client")]
 pub mod client;
+#[cfg(feature = "controller-cli")]
+pub mod controller_cli;
 
 // Two secure-random generated 8-byte unsigned integers
 // Should equals to client parts
@@ -13,7 +15,7 @@ static MIN_SUPPORTED_VERSION: u64 = 0;
 static MAX_SUPPORTED_VERSION: u64 = 0;
 
 #[repr(u8)]
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum ClientCodes {
     CAuth = 0x00,
     CEAuthPart = 0x01,
@@ -60,6 +62,7 @@ impl TryFrom<u8> for ClientCodes {
 }
 
 #[repr(u8)]
+#[derive(Debug, PartialEq, Eq)]
 enum ServerCodes {
     SAuth = 0x00,
     SEAuthPart = 0x01,

@@ -5,9 +5,10 @@ edition = "2021"
 default-run = "rem_admin"
 
 [features]
-default = ["server", "client"]
+default = ["server", "client", "controller-cli"]
 server = []
 client = []
+controller-cli = []
 
 [[bin]]
 name = "server"
@@ -27,3 +28,4 @@ path = "src/main.rs"
 egui = "0.23"
 dialog = "0.3"
 machine-uid = "0.5"
+rand = "0.8"

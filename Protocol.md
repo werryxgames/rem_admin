@@ -62,7 +62,7 @@ Default *TCP* port is *20900*.
 - [x] **CE_AUTH_PART**
 - [x] **CE_AUTH_VERSION**
 - [x] **C_AUTH_OK**
-- [ ] **R_TEST_ECHO**
+- [x] **R_TEST_ECHO**
 - [ ] **R_OK**
 - [ ] **R_FAIL**
 - [ ] **R_FAIL_TEXT**
@@ -79,7 +79,7 @@ Default *TCP* port is *20900*.
 - [x] **S_AUTH**
 - [x] **SE_AUTH_PART**
 - [x] **SE_AUTH_VERSION**
-- [ ] **M_TEST**
+- [x] **M_TEST**
 - [ ] **M_GUI**
 - [ ] **M_ABORT**
 - [ ] **M_GUI_YES_NO**
