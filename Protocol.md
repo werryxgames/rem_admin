@@ -58,10 +58,10 @@ Default *TCP* port is *20900*.
 
 ## Implemented
 ### Client codes
-- [ ] **C_AUTH**
-- [ ] **CE_AUTH_PART**
-- [ ] **CE_AUTH_VERSION**
-- [ ] **C_AUTH_OK**
+- [x] **C_AUTH**
+- [x] **CE_AUTH_PART**
+- [x] **CE_AUTH_VERSION**
+- [x] **C_AUTH_OK**
 - [ ] **R_TEST_ECHO**
 - [ ] **R_OK**
 - [ ] **R_FAIL**
@@ -76,9 +76,9 @@ Default *TCP* port is *20900*.
 - [ ] **C_CONTROL_MANY**
 
 ### Server codes
-- [ ] **S_AUTH**
-- [ ] **SE_AUTH_PART**
-- [ ] **SE_AUTH_VERSION**
+- [x] **S_AUTH**
+- [x] **SE_AUTH_PART**
+- [x] **SE_AUTH_VERSION**
 - [ ] **M_TEST**
 - [ ] **M_GUI**
 - [ ] **M_ABORT**
