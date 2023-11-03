@@ -22,6 +22,60 @@ macro_rules! get_client {
     };
 }
 
+fn parse_quotes(vec: &mut Vec<String>, args: String) -> bool {
+    let mut esc: bool = false;
+    let mut buf: String = String::new();
+    let mut quote: bool = false;
+
+    macro_rules! esc_char {
+        ($cchr: expr, $pchr: expr, $chr: expr, $buf: expr, $esc: expr, $else: expr) => {
+            if $chr == $cchr {
+                $esc = false;
+                $buf.push($pchr);
+            } else {
+                $else
+            }
+        };
+    }
+
+    for chr in args.chars() {
+        if esc {
+            esc_char!('\\', '\\', chr, buf, esc,
+            esc_char!('n', '\n', chr, buf, esc,
+            esc_char!('r', '\r', chr, buf, esc,
+            esc_char!('t', '\t', chr, buf, esc,
+            esc_char!('\"', '\"', chr, buf, esc,
+            esc_char!(' ', ' ', chr, buf, esc,
+            esc_char!('\t', '\t', chr, buf, esc,
+            esc_char!('\n', '\n', chr, buf, esc,
+            esc_char!('\r', '\r', chr, buf, esc,
+            {
+                esc = true;
+                buf.push('\\');
+                buf.push(chr);
+            }
+            )))))))));
+        } else {
+            if chr == '\\' {
+                esc = true;
+            } else if chr == '\"' {
+                quote = !quote;
+            } else if [' ', '\t', '\n', '\r'].contains(&chr) {
+                if quote {
+                    buf.push(chr);
+                } else if !buf.is_empty() {
+                    vec.push(buf.clone());
+                    buf.clear();
+                }
+            } else {
+                buf.push(chr);
+            }
+        }
+    };
+
+    quote
+}
+
 pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
     let mut stdout = io::stdout();
     let stdin = io::stdin();
@@ -32,18 +86,31 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
         stdout.write(b"> ").unwrap();
         stdout.flush().unwrap();
         stdin.read_line(&mut buf).unwrap();
-        let comargs: Vec<&str> = buf.split_whitespace().collect();
+        let mut comargs: Vec<String> = Vec::new();
+        
+        if parse_quotes(&mut comargs, buf) {
+            println!("Invalid syntax");
+            continue;
+        }
 
         if comargs.len() == 0 {
             continue;
         }
 
-        let com = comargs[0];
+        let com = comargs[0].as_str();
         let args = &comargs[1..];
 
         match com {
             "quit" | "exit" | "q" => {
                 return;
+            }
+            "echo" => {
+                println!("{}", args.join(" "));
+            }
+            "args" => {
+                for arg in args.iter().enumerate() {
+                    println!("Arg {}: '{}'", arg.0, arg.1);
+                }
             }
             "list" => {
                 let mut ids: Vec<u128> = Vec::new();
