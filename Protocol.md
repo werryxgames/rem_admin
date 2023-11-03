@@ -14,6 +14,7 @@
 | R_OK_TEXT | 0x08 | Command executed successfully with response | `String text`, `u64 cmd_id` |
 | R_ABORTED | 0x09 | Command aborted as answer to **M_ABORT** | `u64 cmd_id` |
 | R_BOOL | 0x0A | Command executed with boolean result | `u64 cmd_id`, `bool result` |
+| R_NOT_ABORTED | 0x0B | Command already executed or wasn't executed | `u64 cmd_id`, `bool executed` |
 | C_CONTROL | 0x70 | Set mode of this client from *controlled* to *controller* | `String password` |
 | C_CONTROL_ALL | 0x71 | Send packet to all *controlled* clients | `[u8] packet` |
 | C_CONTROL_LIST | 0x72 | List all *controlled* clients |
@@ -63,12 +64,13 @@ Default *TCP* port is *20900*.
 - [x] **CE_AUTH_VERSION**
 - [x] **C_AUTH_OK**
 - [x] **R_TEST_ECHO**
-- [ ] **R_OK**
-- [ ] **R_FAIL**
+- [x] **R_OK**
+- [x] **R_FAIL**
 - [ ] **R_FAIL_TEXT**
 - [ ] **R_OK_TEXT**
-- [ ] **R_ABORTED**
-- [ ] **R_BOOL**
+- [x] **R_ABORTED**
+- [x] **R_BOOL**
+- [x] **R_NOT_ABORTED**
 - [ ] **C_CONTROL**
 - [ ] **C_CONTROL_ALL**
 - [ ] **C_CONTROL_LIST**
@@ -81,8 +83,8 @@ Default *TCP* port is *20900*.
 - [x] **SE_AUTH_VERSION**
 - [x] **M_TEST**
 - [x] **M_GUI**
-- [ ] **M_ABORT**
-- [ ] **M_GUI_YES_NO**
+- [x] **M_ABORT**
+- [x] **M_GUI_YES_NO**
 - [ ] **M_MOVE_CURSOR**
 - [ ] **M_MOVE_CURSOR_REL**
 - [ ] **M_TYPE_KEYBOARD**
