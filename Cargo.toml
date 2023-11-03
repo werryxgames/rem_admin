@@ -25,7 +25,7 @@ name = "rem_admin"
 path = "src/main.rs"
 
 [dependencies]
-egui = "0.23"
-dialog = "0.3"
+gtk = "0.18"
 machine-uid = "0.5"
 rand = "0.8"
+enigo = "0.1"

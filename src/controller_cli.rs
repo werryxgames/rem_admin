@@ -1,7 +1,7 @@
 use std::{io::{self, Write, Read, ErrorKind, Error}, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
-use crate::{server::Client, ServerCodes};
+use crate::{server::Client, ServerCodes, ClientCodes};
 
 macro_rules! get_client {
     ($clients: expr, $id: expr, $if_b: expr, $else_b: expr) => {
@@ -147,10 +147,10 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     let num: u32 = thread_rng().gen();
                     msg.extend(num.to_be_bytes());
                     client.stream.write(&msg).unwrap();
-                    let mut data = [0u8; 4];
+                    let mut code = [0u8; 1];
 
                     loop {
-                        match client.stream.read_exact(&mut data) {
+                        match client.stream.read_exact(&mut code) {
                             Ok(_) => {
                                 break;
                             }
@@ -164,12 +164,33 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                         }
                     }
 
-                    let recv_num = u32::from_be_bytes(data);
+                    if u8::from_be_bytes(code) == ClientCodes::RTestEcho as u8 {
+                        let mut data = [0u8; 4];
 
-                    if recv_num == num {
-                        println!("Test passed ({} == {})", recv_num, num);
+                        loop {
+                            match client.stream.read_exact(&mut data) {
+                                Ok(_) => {
+                                    break;
+                                }
+                                Err(err) => {
+                                    if err.kind() == ErrorKind::WouldBlock {
+                                        continue;
+                                    }
+
+                                    Err::<(), Error>(err).unwrap();
+                                }
+                            }
+                        }
+
+                        let recv_num = u32::from_be_bytes(data);
+
+                        if recv_num == num {
+                            println!("Test passed ({} == {})", recv_num, num);
+                        } else {
+                            println!("Test failed ({} != {})", recv_num, num);
+                        }
                     } else {
-                        println!("Test failed ({} != {})", recv_num, num);
+                        println!("Invalid response");
                     }
                 }, {
                     println!("Selected client not found")
@@ -197,6 +218,155 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                 }, {
                     println!("Selected client not found")
                 });
+            }
+            "confirm" => {
+                if args.len() != 2 {
+                    println!("This command takes exactly 2 arguments, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ServerCodes::MGuiYesNo as u8);
+                    msg.extend((args[0].len() as u32).to_be_bytes());
+                    msg.extend(args[0].as_bytes());
+                    msg.extend((args[1].len() as u32).to_be_bytes());
+                    msg.extend(args[1].as_bytes());
+                    client.stream.write(&msg).unwrap();
+                }, {
+                    println!("Selected client not found")
+                });
+            }
+            "abort" => {
+                if args.len() != 1 {
+                    println!("This command takes exactly 1 argument, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                let mut arg_error = false;
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ServerCodes::MAbort as u8);
+                    let arg_result: Result<u64, _> = args[0].parse();
+
+                    if arg_result.is_err() {
+                        arg_error = true;
+                    } else {
+                        let arg = arg_result.unwrap();
+                        msg.extend(arg.to_be_bytes());
+                        client.stream.write(&msg).unwrap();
+
+                        let mut code = [0u8; 1];
+
+                        loop {
+                            match client.stream.read_exact(&mut code) {
+                                Ok(_) => {
+                                    break;
+                                }
+                                Err(err) => {
+                                    if err.kind() == ErrorKind::WouldBlock {
+                                        continue;
+                                    }
+
+                                    Err::<(), Error>(err).unwrap();
+                                }
+                            }
+                        }
+
+                        let num_code = u8::from_be_bytes(code);
+
+                        if num_code == ClientCodes::RAborted as u8 {
+                            let mut data = [0u8; 8];
+
+                            loop {
+                                match client.stream.read_exact(&mut data) {
+                                    Ok(_) => {
+                                        break;
+                                    }
+                                    Err(err) => {
+                                        if err.kind() == ErrorKind::WouldBlock {
+                                            continue;
+                                        }
+
+                                        Err::<(), Error>(err).unwrap();
+                                    }
+                                }
+                            }
+
+                            let code = u64::from_be_bytes(data);
+
+                            if code == arg {
+                                println!("Aborted");
+                            } else {
+                                println!("Wrong process aborted");
+                            }
+                        } else if num_code == ClientCodes::RNotAborted as u8 {
+                            let mut data = [0u8; 8];
+
+                            loop {
+                                match client.stream.read_exact(&mut data) {
+                                    Ok(_) => {
+                                        break;
+                                    }
+                                    Err(err) => {
+                                        if err.kind() == ErrorKind::WouldBlock {
+                                            continue;
+                                        }
+
+                                        Err::<(), Error>(err).unwrap();
+                                    }
+                                }
+                            }
+
+                            let code = u64::from_be_bytes(data);
+                            let mut data2 = [0u8; 1];
+
+                            loop {
+                                match client.stream.read_exact(&mut data2) {
+                                    Ok(_) => {
+                                        break;
+                                    }
+                                    Err(err) => {
+                                        if err.kind() == ErrorKind::WouldBlock {
+                                            continue;
+                                        }
+
+                                        Err::<(), Error>(err).unwrap();
+                                    }
+                                }
+                            }
+
+                            let reason: bool = u8::from_be_bytes(data2) != 0;
+
+                            if code == arg {
+                                if reason {
+                                    println!("Already executed");
+                                } else {
+                                    println!("Process never spawned");
+                                }
+                            } else {
+                                println!("Wrong process not aborted");
+                            }
+                        }
+                    }
+                }, {
+                    println!("Selected client not found")
+                });
+
+                if arg_error {
+                    println!("First argument must be an unsigned 64-bit integer");
+                }
             }
             _ => {
                 println!("Unknown command");

@@ -66,13 +66,39 @@ fn handle_packet(client: Arc<Mutex<Client>>, code: ClientCodes) -> bool {
             client.lock().unwrap().stream.flush().unwrap();
             client.lock().unwrap().version = version;
             client.lock().unwrap().is_authorized = true;
-        },
+        }
         ClientCodes::CAuthOK => {
             let mut data = [0u8; 16];
             client.lock().unwrap().stream.read(&mut data).unwrap();
             let uid = u128::from_be_bytes(data);
             client.lock().unwrap().id = uid;
             println!("Client authorized: {}", uid);
+        }
+        ClientCodes::ROK => {
+            let mut data = [0u8; 8];
+            client.lock().unwrap().stream.read(&mut data).unwrap();
+            let packet_id = u64::from_be_bytes(data);
+            println!("Packet with id {} returned successful result", packet_id);
+        }
+        ClientCodes::RFail => {
+            let mut data = [0u8; 8];
+            client.lock().unwrap().stream.read(&mut data).unwrap();
+            let packet_id = u64::from_be_bytes(data);
+            println!("Packet with id {} returned non-successful result", packet_id);
+        }
+        ClientCodes::RBool => {
+            let mut data = [0u8; 8];
+            client.lock().unwrap().stream.read(&mut data).unwrap();
+            let packet_id = u64::from_be_bytes(data);
+            let mut data2 = [0u8; 1];
+            client.lock().unwrap().stream.read(&mut data2).unwrap();
+            let result = u8::from_be_bytes(data2) != 0;
+
+            if result {
+                println!("Packet with id {} returned true", packet_id);
+            } else {
+                println!("Packet with id {} returned false", packet_id);
+            }
         }
         _ => {
             todo!()
