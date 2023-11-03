@@ -80,7 +80,7 @@ Default *TCP* port is *20900*.
 - [x] **SE_AUTH_PART**
 - [x] **SE_AUTH_VERSION**
 - [x] **M_TEST**
-- [ ] **M_GUI**
+- [x] **M_GUI**
 - [ ] **M_ABORT**
 - [ ] **M_GUI_YES_NO**
 - [ ] **M_MOVE_CURSOR**

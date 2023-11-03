@@ -1,6 +1,7 @@
 extern crate machine_uid;
-use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::sleep, time::Duration};
+use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::{sleep, self}, time::Duration};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
+use dialog::DialogBox;
 
 static HOST: &str = "127.0.0.1:20900";
 static CONNECT_INTERVAL: u64 = 5000;
@@ -110,6 +111,21 @@ pub fn start_client() {
                             let mut buf = [0u8; 4];
                             stream.read_exact(&mut buf).unwrap();
                             stream.write(&buf).unwrap();
+                        }
+                        ServerCodes::MGui => {
+                            let mut title_len = [0u8; 4];
+                            stream.read_exact(&mut title_len).unwrap();
+                            let mut title_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(title_len) as usize];
+                            stream.read_exact(&mut title_bytes).unwrap();
+                            let mut message_len = [0u8; 4];
+                            stream.read_exact(&mut message_len).unwrap();
+                            let mut message_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(message_len) as usize];
+                            stream.read_exact(&mut message_bytes).unwrap();
+                            let title = String::from_utf8(title_bytes).unwrap();
+                            let message = String::from_utf8(message_bytes).unwrap();
+                            thread::spawn(move || {
+                                dialog::Message::new(message).title(title).show().unwrap();
+                            });
                         }
                         _ => {
                             todo!()
