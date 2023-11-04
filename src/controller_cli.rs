@@ -1,5 +1,5 @@
 use std::{io::{self, Write, Read, ErrorKind, Error}, sync::{Arc, Mutex}};
-use enigo::{Enigo, MouseControllable};
+use enigo::{Enigo, MouseControllable, KeyboardControllable};
 use rand::{thread_rng, Rng};
 
 use crate::{server::Client, ServerCodes, ClientCodes};
@@ -435,6 +435,27 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     } else {
                         println!("First argument must be a signed 32-bit integer");
                     }
+                }, {
+                    println!("Selected client not found")
+                });
+            }
+            "type" => {
+                if args.len() != 1 {
+                    println!("This command takes exactly 1 argument, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ServerCodes::MTypeKeyboard as u8);
+                    msg.extend((args[0].len() as u32).to_be_bytes());
+                    msg.extend(args[0].as_bytes());
+                    client.stream.write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });

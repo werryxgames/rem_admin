@@ -1,6 +1,6 @@
 use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
-use enigo::{Enigo, MouseControllable};
+use enigo::{Enigo, MouseControllable, KeyboardControllable};
 use gtk::prelude::DialogExt;
 use rand::Rng;
 use sysinfo::{System, SystemExt, CpuExt};
@@ -348,6 +348,14 @@ pub fn start_client() {
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
                             Enigo::new().mouse_move_relative(x, y);
+                        }
+                        ServerCodes::MTypeKeyboard => {
+                            let mut data1 = [0u8; 4];
+                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
+                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            let sequence = String::from_utf8(data2).unwrap();
+                            Enigo::new().key_sequence_parse(&sequence);
                         }
                         _ => {
                             todo!()
