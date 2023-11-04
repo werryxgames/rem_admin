@@ -37,6 +37,7 @@
 | M_TYPE_KEYBOARD | 0x09 | Simulate char being typed by keyboard | `String sequence` |
 | M_CLIPBOARD_GET | 0x0A | Return data from clipboard |
 | M_CLIPBOARD_SET | 0x0B | Replace old data in clipboard to new | `String new_data` |
+| M_GUI_INPUT | 0x0C | Show GUI window with text input prompt | `String title`, `String content` |
 | S_CONTROL_OK | 0x70 | Mode of that client set from *controlled* to *controller* |
 | SE_CONTROL_PASS | 0x71 | Incorrect control password |
 | SE_CONTROL_OFF | 0x72 | Control mode is turned off for this server |
@@ -66,8 +67,8 @@ Default *TCP* port is *20900*.
 - [x] **R_TEST_ECHO**
 - [x] **R_OK**
 - [x] **R_FAIL**
-- [ ] **R_FAIL_TEXT**
-- [ ] **R_OK_TEXT**
+- [x] **R_FAIL_TEXT**
+- [x] **R_OK_TEXT**
 - [x] **R_ABORTED**
 - [x] **R_BOOL**
 - [x] **R_NOT_ABORTED**
@@ -88,8 +89,9 @@ Default *TCP* port is *20900*.
 - [x] **M_MOVE_CURSOR**
 - [x] **M_MOVE_CURSOR_REL**
 - [x] **M_TYPE_KEYBOARD**
-- [ ] **M_CLIPBOARD_GET**
-- [ ] **M_CLIPBOARD_SET**
+- [x] **M_CLIPBOARD_GET**
+- [x] **M_CLIPBOARD_SET**
+- [ ] **M_GUI_INPUT**
 - [ ] **S_CONTROL_OK**
 - [ ] **SE_CONTROL_PASS**
 - [ ] **SE_CONTROL_OFF**

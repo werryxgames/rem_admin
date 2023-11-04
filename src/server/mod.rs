@@ -26,8 +26,8 @@ impl Client {
         Client { stream, id: u128::MAX, version: u64::MAX, requests: Vec::new(), request_id: 0, is_authorized: false, is_controlled: true }
     }
 
-    pub fn request(&mut self, req: Request) {
-        self.requests.push(req);
+    pub fn request(&mut self) {
+        self.requests.push(Request { id: self.request_id });
         self.request_id += 1;
     }
 }
@@ -99,6 +99,26 @@ fn handle_packet(client: Arc<Mutex<Client>>, code: ClientCodes) -> bool {
             } else {
                 println!("Packet with id {} returned false", packet_id);
             }
+        }
+        ClientCodes::ROKText => {
+            let mut data1 = [0u8; 4];
+            client.lock().unwrap().stream.read(&mut data1).unwrap();
+            let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
+            client.lock().unwrap().stream.read(&mut data2).unwrap();
+            let mut data3 = [0u8; 8];
+            client.lock().unwrap().stream.read(&mut data3).unwrap();
+            let packet_id = u64::from_be_bytes(data3);
+            println!("Packet with id {} returned \"{}\"", packet_id, String::from_utf8(data2).unwrap())
+        }
+        ClientCodes::RFailText => {
+            let mut data1 = [0u8; 4];
+            client.lock().unwrap().stream.read(&mut data1).unwrap();
+            let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
+            client.lock().unwrap().stream.read(&mut data2).unwrap();
+            let mut data3 = [0u8; 8];
+            client.lock().unwrap().stream.read(&mut data3).unwrap();
+            let packet_id = u64::from_be_bytes(data3);
+            println!("Packet with id {} failed with \"{}\"", packet_id, String::from_utf8(data2).unwrap())
         }
         _ => {
             todo!()

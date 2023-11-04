@@ -13,12 +13,12 @@ static REQUESTS: Mutex<Vec<Request>> = Mutex::new(Vec::new());
 static REQUEST_ID: Mutex<u64> = Mutex::new(0);
 
 pub struct Request {
-    pub process: Arc<Mutex<Child>>,
+    pub process: Option<Arc<Mutex<Child>>>,
     pub id: u64,
 }
 
 impl Request {
-    pub fn new(process: Arc<Mutex<Child>>) -> u64 {
+    pub fn new(process: Option<Arc<Mutex<Child>>>) -> u64 {
         let lock: &mut u64 = &mut REQUEST_ID.lock().unwrap();
         let id = lock.overflowing_add(1);
         *lock = id.0;
@@ -37,8 +37,9 @@ impl Request {
             for request_tuple in requests.iter_mut().enumerate() {
                 let request = request_tuple.1;
 
-                if request.id == id {
-                    let mut process = request.process.lock().unwrap();
+                if request.id == id && request.process.is_some() {
+                    let process_m = request.process.as_ref().unwrap();
+                    let mut process = process_m.lock().unwrap();
                     let exited = process.try_wait().unwrap().is_some();
                     process.kill().unwrap();
                     remove = Some(request_tuple.0);
@@ -87,7 +88,7 @@ pub fn get_machine_id() -> u128 {
 pub fn show_dialog(stream: Arc<Mutex<TcpStream>>, title: String, message: String) {
     let child = Command::new(env::current_exe().unwrap()).args([ARGV_DIALOG, ARGV_DIALOG, ARGV_DIALOG, ARGV_DIALOG, &title, &message, ARGV_DIALOG]).spawn().unwrap();
     let child_m = Arc::new(Mutex::new(child));
-    let process_id = Request::new(child_m.clone());
+    let process_id = Request::new(Some(child_m.clone()));
     thread::spawn(move || {
         let mut code_option;
 
@@ -118,7 +119,7 @@ pub fn show_dialog(stream: Arc<Mutex<TcpStream>>, title: String, message: String
 pub fn show_dialog_yesno(stream: Arc<Mutex<TcpStream>>, title: String, message: String) {
     let child = Command::new(env::current_exe().unwrap()).args([ARGV_DIALOG_YESNO, ARGV_DIALOG_YESNO, ARGV_DIALOG_YESNO, ARGV_DIALOG_YESNO, &title, &message, ARGV_DIALOG_YESNO]).spawn().unwrap();
     let child_m = Arc::new(Mutex::new(child));
-    let process_id = Request::new(child_m.clone());
+    let process_id = Request::new(Some(child_m.clone()));
     thread::spawn(move || {
         let mut code_option;
         
@@ -356,6 +357,25 @@ pub fn start_client() {
                             stream.lock().unwrap().read_exact(&mut data2).unwrap();
                             let sequence = String::from_utf8(data2).unwrap();
                             Enigo::new().key_sequence_parse(&sequence);
+                        }
+                        ServerCodes::MClipboardGet => {
+                            let code = Request::new(None);
+                            let clipboard = terminal_clipboard::get_string().unwrap();
+                            let mut msg: Vec<u8> = Vec::new();
+                            msg.push(ClientCodes::ROKText as u8);
+                            msg.extend((clipboard.len() as u32).to_be_bytes());
+                            msg.extend(clipboard.as_bytes());
+                            msg.extend(code.to_be_bytes());
+                            stream.lock().unwrap().write(&msg).unwrap();
+                        }
+                        ServerCodes::MClipboardSet => {
+                            let mut data1 = [0u8; 4];
+                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
+                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            let clipboard = String::from_utf8(data2).unwrap();
+                            println!("Content: {}", clipboard);
+                            terminal_clipboard::set_string(clipboard).unwrap();
                         }
                         _ => {
                             todo!()

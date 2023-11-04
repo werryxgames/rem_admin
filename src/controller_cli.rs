@@ -215,6 +215,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.extend(args[0].as_bytes());
                     msg.extend((args[1].len() as u32).to_be_bytes());
                     msg.extend(args[1].as_bytes());
+                    client.request();
                     client.stream.write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
@@ -238,6 +239,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.extend(args[0].as_bytes());
                     msg.extend((args[1].len() as u32).to_be_bytes());
                     msg.extend(args[1].as_bytes());
+                    client.request();
                     client.stream.write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
@@ -453,6 +455,47 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                 get_client!(clients, selected_client, |client: &mut Client| {
                     let mut msg: Vec<u8> = Vec::new();
                     msg.push(ServerCodes::MTypeKeyboard as u8);
+                    msg.extend((args[0].len() as u32).to_be_bytes());
+                    msg.extend(args[0].as_bytes());
+                    client.stream.write(&msg).unwrap();
+                }, {
+                    println!("Selected client not found")
+                });
+            }
+            "clipget" => {
+                if args.len() != 0 {
+                    println!("This command takes no arguments, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ServerCodes::MClipboardGet as u8);
+                    client.request();
+                    client.stream.write(&msg).unwrap();
+                }, {
+                    println!("Selected client not found")
+                });
+            }
+            "clipset" => {
+                if args.len() != 1 {
+                    println!("This command takes exactly 1 argument, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ServerCodes::MClipboardSet as u8);
                     msg.extend((args[0].len() as u32).to_be_bytes());
                     msg.extend(args[0].as_bytes());
                     client.stream.write(&msg).unwrap();
