@@ -32,8 +32,8 @@
 | M_GUI | 0x04 | Show GUI window | `String title`, `String content` |
 | M_ABORT | 0x05 | Abort command | `u64 cmd_id` |
 | M_GUI_YES_NO | 0x06 | Show GUI window with buttons `Yes` and `No` | `String title`, `String content` |
-| M_MOVE_CURSOR | 0x07 | Move cursor to absolute position (`x`; `y`) | `u32 x`, `u32 y` |
-| M_MOVE_CURSOR_REL | 0x08 | Move cursor by (`x`; `y`) | `u32 x`, `u32 y` |
+| M_MOVE_CURSOR | 0x07 | Move cursor to absolute position (`x`; `y`) | `i32 x`, `i32 y` |
+| M_MOVE_CURSOR_REL | 0x08 | Move cursor by (`x`; `y`) | `i32 x`, `i32 y` |
 | M_TYPE_KEYBOARD | 0x09 | Simulate char being typed by keyboard | `char c` |
 | M_CLIPBOARD_GET | 0x0A | Return data from clipboard |
 | M_CLIPBOARD_SET | 0x0B | Replace old data in clipboard to new | `String new_data` |
@@ -86,7 +86,7 @@ Default *TCP* port is *20900*.
 - [x] **M_ABORT**
 - [x] **M_GUI_YES_NO**
 - [x] **M_MOVE_CURSOR**
-- [ ] **M_MOVE_CURSOR_REL**
+- [x] **M_MOVE_CURSOR_REL**
 - [ ] **M_TYPE_KEYBOARD**
 - [ ] **M_CLIPBOARD_GET**
 - [ ] **M_CLIPBOARD_SET**

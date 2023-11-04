@@ -370,21 +370,74 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                 }
             }
             "moveto" => {
-                let x_result: Result<i32, _> = args[0].parse();
-
-                if x_result.is_ok() {
-                    let y_result: Result<i32, _> = args[1].parse();
-
-                    if y_result.is_ok() {
-                        let x = x_result.unwrap();
-                        let y = y_result.unwrap();
-                        Enigo::new().mouse_move_to(x, y);
-                    } else {
-                        println!("Second argument must be a signed 32-bit integer");
-                    }
-                } else {
-                    println!("First argument must be a signed 32-bit integer");
+                if args.len() != 2 {
+                    println!("This command takes exactly 2 arguments, {} given", args.len());
+                    continue;
                 }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let x_result: Result<i32, _> = args[0].parse();
+
+                    if x_result.is_ok() {
+                        let y_result: Result<i32, _> = args[1].parse();
+
+                        if y_result.is_ok() {
+                            let x = x_result.unwrap();
+                            let y = y_result.unwrap();
+                            let mut msg: Vec<u8> = Vec::new();
+                            msg.push(ServerCodes::MMoveCursor as u8);
+                            msg.extend(x.to_be_bytes());
+                            msg.extend(y.to_be_bytes());
+                            client.stream.write(&msg).unwrap();
+                        } else {
+                            println!("Second argument must be a signed 32-bit integer");
+                        }
+                    } else {
+                        println!("First argument must be a signed 32-bit integer");
+                    }
+                }, {
+                    println!("Selected client not found")
+                });
+            }
+            "moveby" => {
+                if args.len() != 2 {
+                    println!("This command takes exactly 2 arguments, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let x_result: Result<i32, _> = args[0].parse();
+
+                    if x_result.is_ok() {
+                        let y_result: Result<i32, _> = args[1].parse();
+
+                        if y_result.is_ok() {
+                            let x = x_result.unwrap();
+                            let y = y_result.unwrap();
+                            let mut msg: Vec<u8> = Vec::new();
+                            msg.push(ServerCodes::MMoveCursorRel as u8);
+                            msg.extend(x.to_be_bytes());
+                            msg.extend(y.to_be_bytes());
+                            client.stream.write(&msg).unwrap();
+                        } else {
+                            println!("Second argument must be a signed 32-bit integer");
+                        }
+                    } else {
+                        println!("First argument must be a signed 32-bit integer");
+                    }
+                }, {
+                    println!("Selected client not found")
+                });
             }
             _ => {
                 println!("Unknown command");
