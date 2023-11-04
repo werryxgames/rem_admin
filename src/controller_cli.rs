@@ -1,4 +1,5 @@
 use std::{io::{self, Write, Read, ErrorKind, Error}, sync::{Arc, Mutex}};
+use enigo::{Enigo, MouseControllable};
 use rand::{thread_rng, Rng};
 
 use crate::{server::Client, ServerCodes, ClientCodes};
@@ -366,6 +367,23 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
 
                 if arg_error {
                     println!("First argument must be an unsigned 64-bit integer");
+                }
+            }
+            "moveto" => {
+                let x_result: Result<i32, _> = args[0].parse();
+
+                if x_result.is_ok() {
+                    let y_result: Result<i32, _> = args[1].parse();
+
+                    if y_result.is_ok() {
+                        let x = x_result.unwrap();
+                        let y = y_result.unwrap();
+                        Enigo::new().mouse_move_to(x, y);
+                    } else {
+                        println!("Second argument must be a signed 32-bit integer");
+                    }
+                } else {
+                    println!("First argument must be a signed 32-bit integer");
                 }
             }
             _ => {

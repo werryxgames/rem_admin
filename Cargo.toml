@@ -26,6 +26,6 @@ path = "src/main.rs"
 
 [dependencies]
 gtk = "0.18"
-machine-uid = "0.5"
+sysinfo = "0.29"
 rand = "0.8"
 enigo = "0.1"

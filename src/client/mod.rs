@@ -1,7 +1,8 @@
-extern crate machine_uid;
-use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit}, sync::{Mutex, Arc}};
+use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
 use gtk::prelude::DialogExt;
+use rand::Rng;
+use sysinfo::{System, SystemExt, CpuExt};
 
 static HOST: &str = "127.0.0.1:20900";
 static CONNECT_INTERVAL: u64 = 5000;
@@ -51,6 +52,34 @@ impl Request {
         }
 
         status
+    }
+}
+
+/// Returns randomly generated unique id for this machine.
+/// Can be regenerated or even changed to match specific id.
+pub fn get_machine_id() -> u128 {
+    let mut path = env::current_exe().unwrap().parent().unwrap().to_path_buf();
+    path.push("machine_id.dat");
+    let file = fs::read(path.as_path());
+
+    if file.is_err() {
+        let rand_num: u128 = rand::thread_rng().gen();
+        let _ = fs::write(path, rand_num.to_be_bytes());
+        rand_num
+    } else {
+        let mut bytes = file.unwrap();
+
+        while bytes.len() < 16 {
+            bytes.push(0);
+        }
+
+        let mut mid_bytes = [0u8; 16];
+
+        for byte in bytes[..16].iter().enumerate() {
+            mid_bytes[byte.0] = *byte.1;
+        }
+
+        u128::from_be_bytes(mid_bytes)
     }
 }
 
@@ -233,21 +262,7 @@ pub fn start_client() {
                                 } else {
                                     let mut msg: Vec<u8> = Vec::new();
                                     msg.push(ClientCodes::CAuthOK as u8);
-                                    let value: u128 = match machine_uid::get() {
-                                        Ok(uid_str) => {
-                                            match u128::from_str_radix(&uid_str, 16) {
-                                                Ok(uid) => {
-                                                    uid
-                                                }
-                                                Err(_) => {
-                                                    0u128
-                                                }
-                                            }
-                                        },
-                                        Err(_) => {
-                                            0u128
-                                        }
-                                    };
+                                    let value: u128 = get_machine_id();
                                     msg.extend(value.to_be_bytes());
                                     stream.lock().unwrap().write(&msg).unwrap();
                                     println!("Authorized");
