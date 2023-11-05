@@ -2,7 +2,7 @@ use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error, self},
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
 use enigo::{Enigo, KeyboardControllable};
 use glib::clone;
-use gtk::{prelude::*, glib};
+use gtk4::{prelude::*, glib};
 use mouse_rs::Mouse;
 use rand::Rng;
 use sysinfo::{System, SystemExt, CpuExt};
@@ -224,50 +224,130 @@ pub fn start_client() {
 
     if argv.len() == 8 {
         if argv[3] == ARGV_DIALOG {
-            gtk::init().unwrap();
-            gtk::MessageDialog::builder()
-            .title(argv[5].clone())
-            .text(argv[6].clone())
-            .buttons(gtk::ButtonsType::Ok)
-            .build().run();
+            let app = gtk4::Application::builder()
+            .application_id("com.werryxgames.rem_admin.alert")
+            .build();
+            let win_title = argv[5].clone();
+            let text = argv[6].clone();
+            app.connect_activate(move |app: &gtk4::Application| {
+                let win = gtk4::ApplicationWindow::new(app);
+                win.set_title(Some(&win_title));
+                win.set_resizable(false);
+                let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+                vbox.set_margin_start(8);
+                vbox.set_margin_end(8);
+                vbox.set_margin_top(8);
+                vbox.set_margin_bottom(8);
+                vbox.set_spacing(8);
+                win.set_child(Some(&vbox));
+                let label = gtk4::Label::builder()
+                .label(&text)
+                .wrap(true)
+                .wrap_mode(gtk4::pango::WrapMode::WordChar)
+                .width_request(150)
+                .max_width_chars(50)
+                .build();
+                vbox.append(&label);
+                let btn = gtk4::Button::with_label("OK");
+                btn.connect_clicked(clone!(@weak win => move |_| {
+                    win.close();
+                }));
+                vbox.append(&btn);
+                win.present();
+            });
+            let args: [&str; 0] = [];
+            app.run_with_args(&args);
             return;
         } else if argv[3] == ARGV_DIALOG_YESNO {
-            gtk::init().unwrap();
-            exit(i32::from(gtk::MessageDialog::builder()
-            .title(argv[5].clone())
-            .text(argv[6].clone())
-            .buttons(gtk::ButtonsType::YesNo)
-            .build().run() == gtk::ResponseType::Yes));
+            static EXIT_CODE: Mutex<i32> = Mutex::new(2);
+            // gtk4::init().unwrap();
+            // exit(i32::from(gtk4::MessageDialog::builder()
+            // .title(argv[5].clone())
+            // .text(argv[6].clone())
+            // .buttons(gtk4::ButtonsType::YesNo)
+            // .build().run() == gtk4::ResponseType::Yes));
+            let app = gtk4::Application::builder()
+            .application_id("com.werryxgames.rem_admin.confirm")
+            .build();
+            let win_title = argv[5].clone();
+            let text = argv[6].clone();
+            app.connect_activate(move |app: &gtk4::Application| {
+                let win = gtk4::ApplicationWindow::new(app);
+                win.set_title(Some(&win_title));
+                win.set_resizable(false);
+                let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+                vbox.set_margin_start(8);
+                vbox.set_margin_end(8);
+                vbox.set_margin_top(8);
+                vbox.set_margin_bottom(8);
+                vbox.set_spacing(8);
+                win.set_child(Some(&vbox));
+                let label = gtk4::Label::builder()
+                .label(&text)
+                .wrap(true)
+                .wrap_mode(gtk4::pango::WrapMode::WordChar)
+                .width_request(150)
+                .max_width_chars(50)
+                .build();
+                vbox.append(&label);
+                let btn1 = gtk4::Button::with_label("OK");
+                btn1.connect_clicked(clone!(@weak win => move |_| {
+                    *EXIT_CODE.lock().unwrap() = 1;
+                    win.close();
+                }));
+                vbox.append(&btn1);
+                let btn2 = gtk4::Button::with_label("Cancel");
+                btn2.connect_clicked(clone!(@weak win => move |_| {
+                    *EXIT_CODE.lock().unwrap() = 0;
+                    win.close();
+                }));
+                vbox.append(&btn2);
+                win.present();
+            });
+            let args: [&str; 0] = [];
+            app.run_with_args(&args);
+            let exit_code = *EXIT_CODE.lock().unwrap();
+            exit(exit_code);
         } else if argv[3] == ARGV_DIALOG_INPUT {
             static EXIT_CODE: Mutex<i32> = Mutex::new(1);
-            let app = gtk::Application::builder()
+            let app = gtk4::Application::builder()
             .application_id("com.werryxgames.rem_admin.prompt")
             .build();
             let win_title = argv[5].clone();
             let text = argv[6].clone();
-            app.connect_activate(move |app: &gtk::Application| {
-                let win = gtk::ApplicationWindow::new(app);
-                win.set_title(&win_title);
-                win.set_width_request(400);
+            app.connect_activate(move |app: &gtk4::Application| {
+                let win = gtk4::ApplicationWindow::new(app);
+                win.set_title(Some(&win_title));
                 win.set_resizable(false);
-                let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
+                let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
                 vbox.set_margin_start(8);
                 vbox.set_margin_end(8);
+                vbox.set_margin_top(8);
+                vbox.set_margin_bottom(8);
+                vbox.set_spacing(8);
                 win.set_child(Some(&vbox));
-                let label = gtk::Label::new(Some(&text));
-                vbox.pack_start(&label, false, false, 8);
-                let entry = gtk::Entry::new();
-                vbox.pack_start(&entry, false, false, 0);
-                let btn = gtk::Button::with_label("OK");
-                btn.connect_clicked(clone!(@weak win => move |_| {
+                let label = gtk4::Label::builder()
+                .label(&text)
+                .wrap(true)
+                .wrap_mode(gtk4::pango::WrapMode::WordChar)
+                .width_request(150)
+                .max_width_chars(50)
+                .build();
+                vbox.append(&label);
+                let entry = gtk4::Entry::new();
+                vbox.append(&entry);
+                let btn = gtk4::Button::with_label("OK");
+                btn.connect_clicked(clone!(@weak win, @weak entry => move |_| {
                     io::stdout().write_all("~".as_bytes()).unwrap();
                     io::stdout().write_all(entry.text().as_bytes()).unwrap();
                     io::stdout().flush().unwrap();
                     *EXIT_CODE.lock().unwrap() = 0;
                     win.close();
                 }));
-                vbox.pack_start(&btn, false, false, 8);
-                win.show_all();
+                entry.connect_activate(clone!(@weak btn => move |_| {
+                    btn.activate();
+                }));
+                vbox.append(&btn);
                 win.present();
             });
             let args: [&str; 0] = [];

@@ -15,7 +15,7 @@ name = "rem_admin"
 path = "src/main.rs"
 
 [dependencies]
-gtk = "0.18"
+gtk4 = "0.7"
 sysinfo = "0.29"
 rand = "0.8"
 enigo = "0.1"
