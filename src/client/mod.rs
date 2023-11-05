@@ -1,7 +1,8 @@
-use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit}, sync::{Mutex, Arc}, fs};
+use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error, self}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
 use enigo::{Enigo, KeyboardControllable};
-use gtk::prelude::DialogExt;
+use glib::clone;
+use gtk::{prelude::*, glib};
 use mouse_rs::Mouse;
 use rand::Rng;
 use sysinfo::{System, SystemExt, CpuExt};
@@ -10,6 +11,7 @@ static HOST: &str = "127.0.0.1:20900";
 static CONNECT_INTERVAL: u64 = 5000;
 static ARGV_DIALOG: &str = "Zk62lYNU1paEiNxk5DVu";
 static ARGV_DIALOG_YESNO: &str = "dxvYc4DVJnBetKI4ImyE";
+static ARGV_DIALOG_INPUT: &str = "7M52jCHyOtwbH4MQa4vA";
 static REQUESTS: Mutex<Vec<Request>> = Mutex::new(Vec::new());
 static REQUEST_ID: Mutex<u64> = Mutex::new(0);
 
@@ -164,6 +166,59 @@ pub fn show_dialog_yesno(stream: Arc<Mutex<TcpStream>>, title: String, message: 
     });
 }
 
+pub fn show_dialog_input(stream: Arc<Mutex<TcpStream>>, title: String, message: String) {
+    let child = Command::new(env::current_exe().unwrap())
+    .args([ARGV_DIALOG_INPUT, ARGV_DIALOG_INPUT, ARGV_DIALOG_INPUT, ARGV_DIALOG_INPUT, &title, &message, ARGV_DIALOG_INPUT])
+    .stdout(Stdio::piped())
+    .spawn().unwrap();
+    let child_m = Arc::new(Mutex::new(child));
+    let process_id = Request::new(Some(child_m.clone()));
+    thread::spawn(move || {
+        let mut code_option;
+
+        loop {
+            code_option = child_m.lock().unwrap().try_wait().unwrap();
+
+            if code_option.is_some() {
+                break;
+            }
+        }
+
+        let code = code_option.unwrap().code();
+
+        if code.is_none() {
+            let mut buf: Vec<u8> = Vec::new();
+            buf.push(ClientCodes::RFail as u8);
+            buf.extend(process_id.to_be_bytes());
+            stream.lock().unwrap().write(&buf).unwrap();
+            println!("No code");
+        } else {
+            let ncode = code.unwrap();
+
+            if ncode == 0 {
+                let mut stdout: Vec<u8> = Vec::new();
+                child_m.lock().unwrap().stdout.as_mut().unwrap().read_to_end(&mut stdout).unwrap();
+
+                if stdout.len() > 0 {
+                    let mut buf: Vec<u8> = Vec::new();
+                    buf.push(ClientCodes::ROKText as u8);
+                    buf.extend((stdout.len() as u32).saturating_sub(1).to_be_bytes());
+                    buf.extend(&stdout[1..]);
+                    buf.extend(process_id.to_be_bytes());
+                    stream.lock().unwrap().write(&buf).unwrap();
+                    return;
+                }
+            }
+
+            let mut buf: Vec<u8> = Vec::new();
+            buf.push(ClientCodes::RFail as u8);
+            buf.extend(process_id.to_be_bytes());
+            stream.lock().unwrap().write(&buf).unwrap();
+            println!("Failed");
+        }
+    });
+}
+
 pub fn start_client() {
     let argv: Vec<String> = env::args().collect();
 
@@ -183,6 +238,42 @@ pub fn start_client() {
             .text(argv[6].clone())
             .buttons(gtk::ButtonsType::YesNo)
             .build().run() == gtk::ResponseType::Yes));
+        } else if argv[3] == ARGV_DIALOG_INPUT {
+            static EXIT_CODE: Mutex<i32> = Mutex::new(1);
+            let app = gtk::Application::builder()
+            .application_id("com.werryxgames.rem_admin.prompt")
+            .build();
+            let win_title = argv[5].clone();
+            let text = argv[6].clone();
+            app.connect_activate(move |app: &gtk::Application| {
+                let win = gtk::ApplicationWindow::new(app);
+                win.set_title(&win_title);
+                win.set_width_request(400);
+                win.set_resizable(false);
+                let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
+                vbox.set_margin_start(8);
+                vbox.set_margin_end(8);
+                win.set_child(Some(&vbox));
+                let label = gtk::Label::new(Some(&text));
+                vbox.pack_start(&label, false, false, 8);
+                let entry = gtk::Entry::new();
+                vbox.pack_start(&entry, false, false, 0);
+                let btn = gtk::Button::with_label("OK");
+                btn.connect_clicked(clone!(@weak win => move |_| {
+                    io::stdout().write_all("~".as_bytes()).unwrap();
+                    io::stdout().write_all(entry.text().as_bytes()).unwrap();
+                    io::stdout().flush().unwrap();
+                    *EXIT_CODE.lock().unwrap() = 0;
+                    win.close();
+                }));
+                vbox.pack_start(&btn, false, false, 8);
+                win.show_all();
+                win.present();
+            });
+            let args: [&str; 0] = [];
+            app.run_with_args(&args);
+            let exit_code = *EXIT_CODE.lock().unwrap();
+            exit(exit_code);
         }
     }
 
@@ -209,6 +300,9 @@ pub fn start_client() {
                 msg.extend(AUTH_PARTS[0].to_be_bytes());
                 stream.lock().unwrap().write(&msg).unwrap();
 
+                let mouse = Mouse::new();
+                let mut enigo = Enigo::new();
+
                 let mut server_code = [0u8; 1];
 
                 loop {
@@ -226,9 +320,6 @@ pub fn start_client() {
                             }
                         };
                     }
-
-                    let mouse = Mouse::new();
-                    let mut enigo = Enigo::new();
     
                     let code: ServerCodes = server_code[0].try_into().unwrap();
 
@@ -381,6 +472,19 @@ pub fn start_client() {
                             let clipboard = String::from_utf8(data2).unwrap();
                             println!("Content: {}", clipboard);
                             terminal_clipboard::set_string(clipboard).unwrap();
+                        }
+                        ServerCodes::MGuiInput => {
+                            let mut title_len = [0u8; 4];
+                            stream.lock().unwrap().read_exact(&mut title_len).unwrap();
+                            let mut title_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(title_len) as usize];
+                            stream.lock().unwrap().read_exact(&mut title_bytes).unwrap();
+                            let mut message_len = [0u8; 4];
+                            stream.lock().unwrap().read_exact(&mut message_len).unwrap();
+                            let mut message_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(message_len) as usize];
+                            stream.lock().unwrap().read_exact(&mut message_bytes).unwrap();
+                            let title = String::from_utf8(title_bytes).unwrap();
+                            let message = String::from_utf8(message_bytes).unwrap();
+                            show_dialog_input(stream.clone(), title, message);
                         }
                         _ => {
                             todo!()

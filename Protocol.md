@@ -91,7 +91,7 @@ Default *TCP* port is *20900*.
 - [x] **M_TYPE_KEYBOARD**
 - [x] **M_CLIPBOARD_GET**
 - [x] **M_CLIPBOARD_SET**
-- [ ] **M_GUI_INPUT**
+- [x] **M_GUI_INPUT**
 - [ ] **S_CONTROL_OK**
 - [ ] **SE_CONTROL_PASS**
 - [ ] **SE_CONTROL_OFF**

@@ -503,6 +503,30 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     println!("Selected client not found")
                 });
             }
+            "prompt" => {
+                if args.len() != 2 {
+                    println!("This command takes exactly 2 arguments, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, selected_client, |client: &mut Client| {
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ServerCodes::MGuiInput as u8);
+                    msg.extend((args[0].len() as u32).to_be_bytes());
+                    msg.extend(args[0].as_bytes());
+                    msg.extend((args[1].len() as u32).to_be_bytes());
+                    msg.extend(args[1].as_bytes());
+                    client.request();
+                    client.stream.write(&msg).unwrap();
+                }, {
+                    println!("Selected client not found")
+                });
+            }
             _ => {
                 println!("Unknown command");
             }
