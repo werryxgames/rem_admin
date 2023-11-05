@@ -1,7 +1,8 @@
 use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
-use enigo::{Enigo, MouseControllable, KeyboardControllable};
+use enigo::{Enigo, KeyboardControllable};
 use gtk::prelude::DialogExt;
+use mouse_rs::Mouse;
 use rand::Rng;
 use sysinfo::{System, SystemExt, CpuExt};
 
@@ -174,6 +175,7 @@ pub fn start_client() {
             .text(argv[6].clone())
             .buttons(gtk::ButtonsType::Ok)
             .build().run();
+            return;
         } else if argv[3] == ARGV_DIALOG_YESNO {
             gtk::init().unwrap();
             exit(i32::from(gtk::MessageDialog::builder()
@@ -182,8 +184,6 @@ pub fn start_client() {
             .buttons(gtk::ButtonsType::YesNo)
             .build().run() == gtk::ResponseType::Yes));
         }
-
-        return;
     }
 
     let stream: Arc<Mutex<TcpStream>>;
@@ -227,6 +227,9 @@ pub fn start_client() {
                         };
                     }
 
+                    let mouse = Mouse::new();
+                    let mut enigo = Enigo::new();
+    
                     let code: ServerCodes = server_code[0].try_into().unwrap();
 
                     match code {
@@ -339,7 +342,7 @@ pub fn start_client() {
                             stream.lock().unwrap().read_exact(&mut data2).unwrap();
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
-                            Enigo::new().mouse_move_to(x, y);
+                            mouse.move_to(x, y);
                         }
                         ServerCodes::MMoveCursorRel => {
                             let mut data1 = [0u8; 4];
@@ -348,7 +351,9 @@ pub fn start_client() {
                             stream.lock().unwrap().read_exact(&mut data2).unwrap();
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
-                            Enigo::new().mouse_move_relative(x, y);
+                            let point = mouse.get_position().unwrap();
+                            let new_point = (point.x + x, point.y + y);
+                            mouse.move_to(new_point.0, new_point.1);
                         }
                         ServerCodes::MTypeKeyboard => {
                             let mut data1 = [0u8; 4];
@@ -356,7 +361,7 @@ pub fn start_client() {
                             let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
                             stream.lock().unwrap().read_exact(&mut data2).unwrap();
                             let sequence = String::from_utf8(data2).unwrap();
-                            Enigo::new().key_sequence_parse(&sequence);
+                            enigo.key_sequence_parse(&sequence);
                         }
                         ServerCodes::MClipboardGet => {
                             let code = Request::new(None);

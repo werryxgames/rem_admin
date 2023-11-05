@@ -11,16 +11,6 @@ client = []
 controller-cli = []
 
 [[bin]]
-name = "server"
-path = "src/server/main.rs"
-required-features = ["server"]
-
-[[bin]]
-name = "client"
-path = "src/client/main.rs"
-required-features = ["client"]
-
-[[bin]]
 name = "rem_admin"
 path = "src/main.rs"
 
@@ -30,3 +20,4 @@ sysinfo = "0.29"
 rand = "0.8"
 enigo = "0.1"
 terminal-clipboard = "0.4"
+mouse-rs = "0.4"

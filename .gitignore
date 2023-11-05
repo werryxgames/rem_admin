@@ -12,3 +12,7 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
+
+# Shell files to build for other platform in one line
+build-*.sh
+build-*.bat
