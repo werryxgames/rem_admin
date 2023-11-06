@@ -107,13 +107,11 @@ pub fn show_dialog(stream_m: Arc<Mutex<TcpStream>>, title: String, message: Stri
             buf.push(ClientCodes::ROk as u8);
             buf.extend(process_id.to_be_bytes());
             stream.write_all(&buf).unwrap();
-            println!("SENT ROK");
         } else {
             let mut buf: Vec<u8> = Vec::new();
             buf.push(ClientCodes::RFail as u8);
             buf.extend(process_id.to_be_bytes());
             stream.write_all(&buf).unwrap();
-            println!("SENT RFail");
         }
     });
 }
@@ -370,6 +368,8 @@ pub fn start_client() {
 
         match TcpStream::connect(HOST) {
             Ok(server) => {
+                server.set_nodelay(true).unwrap();
+                server.set_nonblocking(true).unwrap();
                 stream_m = Arc::new(Mutex::new(server));
 
                 {
@@ -391,9 +391,9 @@ pub fn start_client() {
                 let mut server_code = [0u8; 1];
 
                 loop {
-                    let mut stream = stream_m.lock().unwrap();
-
                     loop {
+                        let mut stream = stream_m.lock().unwrap();
+
                         match stream.read_exact(&mut server_code) {
                             Ok(_) => {
                                 break;
@@ -408,6 +408,7 @@ pub fn start_client() {
                         };
                     }
     
+                    let mut stream = stream_m.lock().unwrap();
                     let code: ServerCodes = server_code[0].try_into().unwrap();
 
                     match code {
