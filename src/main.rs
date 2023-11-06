@@ -13,7 +13,7 @@ pub mod controller_gui;
 
 // Two secure-random generated 8-byte unsigned integers
 // Should equals to client parts
-static AUTH_PARTS: [u64; 2] = [0xDefa140000000000, 0xDefa140000000001];
+static AUTH_PARTS: [u64; 2] = [0xDEFA140000000000, 0xDEFA140000000001];
 static VERSION: u64 = 0;
 static MIN_SUPPORTED_VERSION: u64 = 0;
 static MAX_SUPPORTED_VERSION: u64 = 0;
@@ -33,6 +33,8 @@ enum ClientCodes {
     RAborted = 0x09,
     RBool = 0x0A,
     RNotAborted = 0x0B,
+    RInt = 0x0C,
+    RBytes = 0x0D,
     CControl = 0x70,
     CControlAll = 0x71,
     CControlList = 0x72,
@@ -57,6 +59,8 @@ impl TryFrom<u8> for ClientCodes {
             0x09 => Ok(Self::RAborted),
             0x0A => Ok(Self::RBool),
             0x0B => Ok(Self::RNotAborted),
+            0x0C => Ok(Self::RInt),
+            0x0D => Ok(Self::RBytes),
             0x70 => Ok(Self::CControl),
             0x71 => Ok(Self::CControlAll),
             0x72 => Ok(Self::CControlList),
@@ -83,6 +87,18 @@ enum ServerCodes {
     MClipboardGet = 0x0A,
     MClipboardSet = 0x0B,
     MGuiInput = 0x0C,
+    MShellCommand = 0x0D,
+    MGetScreen = 0x0E,
+    MOpenBrowser = 0x0F,
+    MRequestGet = 0x10,
+    MRequestPost = 0x11,
+    MDirList = 0x12,
+    MFileRead = 0x13,
+    MFileWrite = 0x14,
+    MRemove = 0x15,
+    MMakeDir = 0x16,
+    MSystemInfo = 0x17,
+    MRepeat = 0x18,
     SControlOK = 0x70,
     SEControlOff = 0x71,
     SEControlPass = 0x72,
@@ -107,6 +123,18 @@ impl TryFrom<u8> for ServerCodes {
             0x0A => Ok(Self::MClipboardGet),
             0x0B => Ok(Self::MClipboardSet),
             0x0C => Ok(Self::MGuiInput),
+            0x0D => Ok(Self::MShellCommand),
+            0x0E => Ok(Self::MGetScreen),
+            0x0F => Ok(Self::MOpenBrowser),
+            0x10 => Ok(Self::MRequestGet),
+            0x11 => Ok(Self::MRequestPost),
+            0x12 => Ok(Self::MDirList),
+            0x13 => Ok(Self::MFileRead),
+            0x14 => Ok(Self::MFileWrite),
+            0x15 => Ok(Self::MRemove),
+            0x16 => Ok(Self::MMakeDir),
+            0x17 => Ok(Self::MSystemInfo),
+            0x18 => Ok(Self::MRepeat),
             0x70 => Ok(Self::SControlOK),
             0x71 => Ok(Self::SEControlOff),
             0x72 => Ok(Self::SEControlPass),
