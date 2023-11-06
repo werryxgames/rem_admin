@@ -1,4 +1,5 @@
 # RemAP - Remote Administration Protocol.
+Version - **1.1**.
 
 ## Client packets
 | Name | Code | Description | Arguments |
@@ -15,6 +16,8 @@
 | R_ABORTED | 0x09 | Command aborted as answer to **M_ABORT** | `u64 cmd_id` |
 | R_BOOL | 0x0A | Command executed with boolean result | `u64 cmd_id`, `bool result` |
 | R_NOT_ABORTED | 0x0B | Command already executed or wasn't executed | `u64 cmd_id`, `bool executed` |
+| R_INT | 0x0C | Command executed with `u32` code | `u64 cmd_id`, `u32 result` |
+| R_BYTES | 0x0D | Command executed with byte result | `u64 cmd_id`, `Vec<u8> bytes` |
 | C_CONTROL | 0x70 | Set mode of this client from *controlled* to *controller* | `String password` |
 | C_CONTROL_ALL | 0x71 | Send packet to all *controlled* clients | `[u8] packet` |
 | C_CONTROL_LIST | 0x72 | List all *controlled* clients |
@@ -38,6 +41,18 @@
 | M_CLIPBOARD_GET | 0x0A | Return data from clipboard |
 | M_CLIPBOARD_SET | 0x0B | Replace old data in clipboard to new | `String new_data` |
 | M_GUI_INPUT | 0x0C | Show GUI window with text input prompt | `String title`, `String content` |
+| M_SHELL_COMMAND | 0x0D | Execute native shell (bash/batch/other) command | `String  cmd` |
+| M_GET_SCREEN | 0x0E | Return screen pixels |
+| M_OPEN_BROWSER | 0x0F | Open link in default browser | `String link` |
+| M_REQUEST_GET | 0x10 | Make GET request to URL and return result | `String url` |
+| M_REQUEST_POST | 0x11 | Make POST request to URL and return result | `String url`, `Vec<(String, String)> params` |
+| M_DIR_LIST | 0x12 | Return list of all files and directories in directory | `String path` |
+| M_FILE_READ | 0x13 | Return content of file | `String path` |
+| M_FILE_WRITE | 0x14 | Writes to file | `String path`, `Vec<u8> data` |
+| M_REMOVE | 0x15 | Removes file or directory | `String path` |
+| M_MAKE_DIR | 0x16 | Makes new directory | `String path` |
+| M_SYSTEM_INFO | 0x17 | Get and respond with system information | `u8 info_id` |
+| M_REPEAT | 0x18 | Repeatedly simulate same command from server (`times = 0` means repeat until aborted) | `Vec<u8> command`, `u64 times` |
 | S_CONTROL_OK | 0x70 | Mode of that client set from *controlled* to *controller* |
 | SE_CONTROL_PASS | 0x71 | Incorrect control password |
 | SE_CONTROL_OFF | 0x72 | Control mode is turned off for this server |
@@ -72,6 +87,8 @@ Default *TCP* port is *20900*.
 - [x] **R_ABORTED**
 - [x] **R_BOOL**
 - [x] **R_NOT_ABORTED**
+- [ ] **R_INT**
+- [ ] **R_BYTES**
 - [ ] **C_CONTROL**
 - [ ] **C_CONTROL_ALL**
 - [ ] **C_CONTROL_LIST**
@@ -92,6 +109,18 @@ Default *TCP* port is *20900*.
 - [x] **M_CLIPBOARD_GET**
 - [x] **M_CLIPBOARD_SET**
 - [x] **M_GUI_INPUT**
+- [ ] **M_SHELL_COMMAND**
+- [ ] **M_GET_SCREEN**
+- [ ] **M_OPEN_BROWSER**
+- [ ] **M_REQUEST_GET**
+- [ ] **M_REQUEST_POST**
+- [ ] **M_DIR_LIST**
+- [ ] **M_FILE_READ**
+- [ ] **M_FILE_WRITE**
+- [ ] **M_REMOVE**
+- [ ] **M_MAKE_DIR**
+- [ ] **M_SYSTEM_INFO**
+- [ ] **M_REPEAT**
 - [ ] **S_CONTROL_OK**
 - [ ] **SE_CONTROL_PASS**
 - [ ] **SE_CONTROL_OFF**
