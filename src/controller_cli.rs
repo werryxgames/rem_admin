@@ -1,17 +1,16 @@
-use std::{io::{self, Write, Read, ErrorKind, Error}, sync::{Arc, Mutex}};
-use enigo::{Enigo, MouseControllable, KeyboardControllable};
+use std::{io::{self, Write, ErrorKind, Error, Read}, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
 use crate::{server::Client, ServerCodes, ClientCodes};
 
 macro_rules! get_client {
-    ($clients: expr, $id: expr, $if_b: expr, $else_b: expr) => {
-        let clients = $clients.lock().unwrap();
+    ($clients: expr, $index: expr, $if_b: expr, $else_b: expr) => {
+        let mut clients = $clients.lock().unwrap();
         let mut found: bool = false;
 
-        for client in clients.iter() {
-            if client.lock().unwrap().id == $id {
-                $if_b(&mut client.lock().unwrap());
+        for client in clients.iter_mut() {
+            if client.index == $index {
+                $if_b(client);
                 found = true;
                 break;
             }
@@ -77,10 +76,10 @@ fn parse_quotes(vec: &mut Vec<String>, args: String) -> bool {
     quote
 }
 
-pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
+pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
     let mut stdout = io::stdout();
     let stdin = io::stdin();
-    let mut selected_client: u128 = 0;
+    let mut selected_client: u64 = 0;
 
     loop {
         let mut buf: String = String::new();
@@ -114,13 +113,14 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                 }
             }
             "list" => {
-                let mut ids: Vec<u128> = Vec::new();
+                let mut ids: Vec<String> = Vec::new();
+                let clients2 = clients.clone();
 
-                for client in clients.lock().unwrap().iter() {
-                    ids.push(client.lock().unwrap().id);
+                for client in clients2.lock().unwrap().iter() {
+                    ids.push(format!("Client({}, {})", client.index, client.id));
                 }
 
-                println!("Connected clients: {:?}", ids);
+                println!("Connected clients: [{}]", ids.join(", "));
             }
             "select" => {
                 if args.len() == 0 {
@@ -147,11 +147,11 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.push(ServerCodes::MTest as u8);
                     let num: u32 = thread_rng().gen();
                     msg.extend(num.to_be_bytes());
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                     let mut code = [0u8; 1];
 
                     loop {
-                        match client.stream.read_exact(&mut code) {
+                        match client.stream.lock().unwrap().read_exact(&mut code) {
                             Ok(_) => {
                                 break;
                             }
@@ -169,7 +169,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                         let mut data = [0u8; 4];
 
                         loop {
-                            match client.stream.read_exact(&mut data) {
+                            match client.stream.lock().unwrap().read_exact(&mut data) {
                                 Ok(_) => {
                                     break;
                                 }
@@ -216,7 +216,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.extend((args[1].len() as u32).to_be_bytes());
                     msg.extend(args[1].as_bytes());
                     client.request();
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });
@@ -240,7 +240,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.extend((args[1].len() as u32).to_be_bytes());
                     msg.extend(args[1].as_bytes());
                     client.request();
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });
@@ -268,12 +268,12 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     } else {
                         let arg = arg_result.unwrap();
                         msg.extend(arg.to_be_bytes());
-                        client.stream.write(&msg).unwrap();
+                        client.stream.lock().unwrap().write(&msg).unwrap();
 
                         let mut code = [0u8; 1];
 
                         loop {
-                            match client.stream.read_exact(&mut code) {
+                            match client.stream.lock().unwrap().read_exact(&mut code) {
                                 Ok(_) => {
                                     break;
                                 }
@@ -293,7 +293,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                             let mut data = [0u8; 8];
 
                             loop {
-                                match client.stream.read_exact(&mut data) {
+                                match client.stream.lock().unwrap().read_exact(&mut data) {
                                     Ok(_) => {
                                         break;
                                     }
@@ -318,7 +318,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                             let mut data = [0u8; 8];
 
                             loop {
-                                match client.stream.read_exact(&mut data) {
+                                match client.stream.lock().unwrap().read_exact(&mut data) {
                                     Ok(_) => {
                                         break;
                                     }
@@ -336,7 +336,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                             let mut data2 = [0u8; 1];
 
                             loop {
-                                match client.stream.read_exact(&mut data2) {
+                                match client.stream.lock().unwrap().read_exact(&mut data2) {
                                     Ok(_) => {
                                         break;
                                     }
@@ -395,7 +395,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                             msg.push(ServerCodes::MMoveCursor as u8);
                             msg.extend(x.to_be_bytes());
                             msg.extend(y.to_be_bytes());
-                            client.stream.write(&msg).unwrap();
+                            client.stream.lock().unwrap().write(&msg).unwrap();
                         } else {
                             println!("Second argument must be a signed 32-bit integer");
                         }
@@ -430,7 +430,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                             msg.push(ServerCodes::MMoveCursorRel as u8);
                             msg.extend(x.to_be_bytes());
                             msg.extend(y.to_be_bytes());
-                            client.stream.write(&msg).unwrap();
+                            client.stream.lock().unwrap().write(&msg).unwrap();
                         } else {
                             println!("Second argument must be a signed 32-bit integer");
                         }
@@ -457,7 +457,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.push(ServerCodes::MTypeKeyboard as u8);
                     msg.extend((args[0].len() as u32).to_be_bytes());
                     msg.extend(args[0].as_bytes());
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });
@@ -477,7 +477,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     let mut msg: Vec<u8> = Vec::new();
                     msg.push(ServerCodes::MClipboardGet as u8);
                     client.request();
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });
@@ -498,7 +498,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.push(ServerCodes::MClipboardSet as u8);
                     msg.extend((args[0].len() as u32).to_be_bytes());
                     msg.extend(args[0].as_bytes());
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });
@@ -514,7 +514,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     continue;
                 }
 
-                get_client!(clients, selected_client, |client: &mut Client| {
+                get_client!(clients, selected_client, move |client: &mut Client| {
                     let mut msg: Vec<u8> = Vec::new();
                     msg.push(ServerCodes::MGuiInput as u8);
                     msg.extend((args[0].len() as u32).to_be_bytes());
@@ -522,7 +522,7 @@ pub fn controller_cli_start(clients: &Mutex<Vec<Arc<Mutex<Client>>>>) {
                     msg.extend((args[1].len() as u32).to_be_bytes());
                     msg.extend(args[1].as_bytes());
                     client.request();
-                    client.stream.write(&msg).unwrap();
+                    client.stream.lock().unwrap().write(&msg).unwrap();
                 }, {
                     println!("Selected client not found")
                 });

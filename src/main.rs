@@ -1,3 +1,5 @@
+extern crate lazy_static;
+
 use std::io::{Error, ErrorKind};
 
 #[cfg(feature = "server")]
@@ -6,10 +8,12 @@ pub mod server;
 pub mod client;
 #[cfg(feature = "controller-cli")]
 pub mod controller_cli;
+#[cfg(feature = "controller-gui")]
+pub mod controller_gui;
 
 // Two secure-random generated 8-byte unsigned integers
 // Should equals to client parts
-static AUTH_PARTS: [u64; 2] = [0xf61388842cb1b921, 0x9a0c109ca878b305];
+static AUTH_PARTS: [u64; 2] = [0xDefa140000000000, 0xDefa140000000001];
 static VERSION: u64 = 0;
 static MIN_SUPPORTED_VERSION: u64 = 0;
 static MAX_SUPPORTED_VERSION: u64 = 0;
@@ -22,10 +26,10 @@ enum ClientCodes {
     CEAuthVersion = 0x02,
     CAuthOK = 0x03,
     RTestEcho = 0x04,
-    ROK = 0x05,
+    ROk = 0x05,
     RFail = 0x06,
     RFailText = 0x07,
-    ROKText = 0x08,
+    ROkText = 0x08,
     RAborted = 0x09,
     RBool = 0x0A,
     RNotAborted = 0x0B,
@@ -46,10 +50,10 @@ impl TryFrom<u8> for ClientCodes {
             0x02 => Ok(Self::CEAuthVersion),
             0x03 => Ok(Self::CAuthOK),
             0x04 => Ok(Self::RTestEcho),
-            0x05 => Ok(Self::ROK),
+            0x05 => Ok(Self::ROk),
             0x06 => Ok(Self::RFail),
             0x07 => Ok(Self::RFailText),
-            0x08 => Ok(Self::ROKText),
+            0x08 => Ok(Self::ROkText),
             0x09 => Ok(Self::RAborted),
             0x0A => Ok(Self::RBool),
             0x0B => Ok(Self::RNotAborted),
@@ -133,14 +137,11 @@ pub fn start() {
 #[cfg(feature = "server")]
 #[cfg(feature = "client")]
 pub fn start() {
-    match std::env::var_os("REM_ADMIN_SERVER") {
-        Some(value) => {
-            if value == "1" {
-                server::start_server();
-                return;
-            }
+    if let Some(value) = std::env::var_os("REM_ADMIN_SERVER") {
+        if value == "1" {
+            server::start_server();
+            return;
         }
-        None => {}
     };
     client::start_client();
 }

@@ -3,12 +3,14 @@ name = "rem_admin"
 version = "0.1.0"
 edition = "2021"
 default-run = "rem_admin"
+authors = ["Werryx Games"]
 
 [features]
 default = ["server", "client", "controller-cli"]
 server = []
 client = []
 controller-cli = []
+controller-gui = []
 
 [[bin]]
 name = "rem_admin"
@@ -21,3 +23,5 @@ rand = "0.8"
 enigo = "0.1"
 terminal-clipboard = "0.4"
 mouse-rs = "0.4"
+base64_light = "0.1"
+lazy_static = "1.4"

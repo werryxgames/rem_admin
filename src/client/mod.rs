@@ -1,11 +1,10 @@
-use std::{net::{TcpStream, Shutdown}, io::{Write, Read, ErrorKind, Error, self}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
+use std::{net::TcpStream, io::{Write, Read, ErrorKind, self}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
 use enigo::{Enigo, KeyboardControllable};
 use glib::clone;
-use gtk4::{prelude::*, glib};
+use gtk4::{prelude::*, glib::{self, random_int}};
 use mouse_rs::Mouse;
 use rand::Rng;
-use sysinfo::{System, SystemExt, CpuExt};
 
 static HOST: &str = "127.0.0.1:20900";
 static CONNECT_INTERVAL: u64 = 5000;
@@ -21,39 +20,36 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn new(process: Option<Arc<Mutex<Child>>>) -> u64 {
+    pub fn add(process: Option<Arc<Mutex<Child>>>) -> u64 {
         let lock: &mut u64 = &mut REQUEST_ID.lock().unwrap();
         let id = lock.overflowing_add(1);
         *lock = id.0;
         let process_id = id.0.overflowing_sub(1).0;
-        REQUESTS.lock().unwrap().push(Request { process: process, id: process_id });
+        REQUESTS.lock().unwrap().push(Request { process, id: process_id });
         process_id
     }
 
     pub fn abort(id: u64) -> Option<bool> {
         let mut remove: Option<usize> = None;
         let mut status: Option<bool> = None;
+        let mut requests = REQUESTS.lock().unwrap();
 
-        {
-            let mut requests = REQUESTS.lock().unwrap();
+        for request_tuple in requests.iter_mut().enumerate() {
+            let request = request_tuple.1;
 
-            for request_tuple in requests.iter_mut().enumerate() {
-                let request = request_tuple.1;
-
-                if request.id == id && request.process.is_some() {
-                    let process_m = request.process.as_ref().unwrap();
-                    let mut process = process_m.lock().unwrap();
-                    let exited = process.try_wait().unwrap().is_some();
-                    process.kill().unwrap();
-                    remove = Some(request_tuple.0);
-                    status = Some(!exited);
-                    break;
-                }
+            if request.id == id && request.process.is_some() {
+                let process_m = request.process.as_ref().unwrap();
+                let mut process = process_m.lock().unwrap();
+                let exited = process.try_wait().unwrap().is_some();
+                process.kill().unwrap();
+                remove = Some(request_tuple.0);
+                status = Some(!exited);
+                break;
             }
         }
 
-        if remove.is_some() {
-            REQUESTS.lock().unwrap().remove(remove.unwrap());
+        if let Some(rem) = remove {
+            requests.remove(rem);
         }
 
         status
@@ -88,10 +84,10 @@ pub fn get_machine_id() -> u128 {
     }
 }
 
-pub fn show_dialog(stream: Arc<Mutex<TcpStream>>, title: String, message: String) {
+pub fn show_dialog(stream_m: Arc<Mutex<TcpStream>>, title: String, message: String) {
     let child = Command::new(env::current_exe().unwrap()).args([ARGV_DIALOG, ARGV_DIALOG, ARGV_DIALOG, ARGV_DIALOG, &title, &message, ARGV_DIALOG]).spawn().unwrap();
     let child_m = Arc::new(Mutex::new(child));
-    let process_id = Request::new(Some(child_m.clone()));
+    let process_id = Request::add(Some(child_m.clone()));
     thread::spawn(move || {
         let mut code_option;
 
@@ -104,25 +100,28 @@ pub fn show_dialog(stream: Arc<Mutex<TcpStream>>, title: String, message: String
         }
 
         let code = code_option.unwrap().code();
+        let mut stream = stream_m.lock().unwrap();
 
         if code.is_none() || code.unwrap() == 0 {
             let mut buf: Vec<u8> = Vec::new();
-            buf.push(ClientCodes::ROK as u8);
+            buf.push(ClientCodes::ROk as u8);
             buf.extend(process_id.to_be_bytes());
-            stream.lock().unwrap().write(&buf).unwrap();
+            stream.write_all(&buf).unwrap();
+            println!("SENT ROK");
         } else {
             let mut buf: Vec<u8> = Vec::new();
             buf.push(ClientCodes::RFail as u8);
             buf.extend(process_id.to_be_bytes());
-            stream.lock().unwrap().write(&buf).unwrap();
+            stream.write_all(&buf).unwrap();
+            println!("SENT RFail");
         }
     });
 }
 
-pub fn show_dialog_yesno(stream: Arc<Mutex<TcpStream>>, title: String, message: String) {
+pub fn show_dialog_yesno(stream_m: Arc<Mutex<TcpStream>>, title: String, message: String) {
     let child = Command::new(env::current_exe().unwrap()).args([ARGV_DIALOG_YESNO, ARGV_DIALOG_YESNO, ARGV_DIALOG_YESNO, ARGV_DIALOG_YESNO, &title, &message, ARGV_DIALOG_YESNO]).spawn().unwrap();
     let child_m = Arc::new(Mutex::new(child));
-    let process_id = Request::new(Some(child_m.clone()));
+    let process_id = Request::add(Some(child_m.clone()));
     thread::spawn(move || {
         let mut code_option;
         
@@ -135,12 +134,13 @@ pub fn show_dialog_yesno(stream: Arc<Mutex<TcpStream>>, title: String, message: 
         }
 
         let code = code_option.unwrap().code();
+        let mut stream = stream_m.lock().unwrap();
 
         if code.is_none() {
             let mut buf: Vec<u8> = Vec::new();
             buf.push(ClientCodes::RFail as u8);
             buf.extend(process_id.to_be_bytes());
-            stream.lock().unwrap().write(&buf).unwrap();
+            stream.write_all(&buf).unwrap();
         } else {
             let ncode = code.unwrap();
 
@@ -149,30 +149,30 @@ pub fn show_dialog_yesno(stream: Arc<Mutex<TcpStream>>, title: String, message: 
                 buf.push(ClientCodes::RBool as u8);
                 buf.extend(process_id.to_be_bytes());
                 buf.push(false as u8);
-                stream.lock().unwrap().write(&buf).unwrap();
+                stream.write_all(&buf).unwrap();
             } else if ncode == 1 {
                 let mut buf: Vec<u8> = Vec::new();
                 buf.push(ClientCodes::RBool as u8);
                 buf.extend(process_id.to_be_bytes());
                 buf.push(true as u8);
-                stream.lock().unwrap().write(&buf).unwrap();
+                stream.write_all(&buf).unwrap();
             } else {
                 let mut buf: Vec<u8> = Vec::new();
                 buf.push(ClientCodes::RFail as u8);
                 buf.extend(process_id.to_be_bytes());
-                stream.lock().unwrap().write(&buf).unwrap();
+                stream.write_all(&buf).unwrap();
             }
         }
     });
 }
 
-pub fn show_dialog_input(stream: Arc<Mutex<TcpStream>>, title: String, message: String) {
+pub fn show_dialog_input(stream_m: Arc<Mutex<TcpStream>>, title: String, message: String) {
     let child = Command::new(env::current_exe().unwrap())
     .args([ARGV_DIALOG_INPUT, ARGV_DIALOG_INPUT, ARGV_DIALOG_INPUT, ARGV_DIALOG_INPUT, &title, &message, ARGV_DIALOG_INPUT])
     .stdout(Stdio::piped())
     .spawn().unwrap();
     let child_m = Arc::new(Mutex::new(child));
-    let process_id = Request::new(Some(child_m.clone()));
+    let process_id = Request::add(Some(child_m.clone()));
     thread::spawn(move || {
         let mut code_option;
 
@@ -185,12 +185,13 @@ pub fn show_dialog_input(stream: Arc<Mutex<TcpStream>>, title: String, message: 
         }
 
         let code = code_option.unwrap().code();
+        let mut stream = stream_m.lock().unwrap();
 
         if code.is_none() {
             let mut buf: Vec<u8> = Vec::new();
             buf.push(ClientCodes::RFail as u8);
             buf.extend(process_id.to_be_bytes());
-            stream.lock().unwrap().write(&buf).unwrap();
+            stream.write_all(&buf).unwrap();
             println!("No code");
         } else {
             let ncode = code.unwrap();
@@ -199,13 +200,13 @@ pub fn show_dialog_input(stream: Arc<Mutex<TcpStream>>, title: String, message: 
                 let mut stdout: Vec<u8> = Vec::new();
                 child_m.lock().unwrap().stdout.as_mut().unwrap().read_to_end(&mut stdout).unwrap();
 
-                if stdout.len() > 0 {
+                if !stdout.is_empty() {
                     let mut buf: Vec<u8> = Vec::new();
-                    buf.push(ClientCodes::ROKText as u8);
+                    buf.push(ClientCodes::ROkText as u8);
                     buf.extend((stdout.len() as u32).saturating_sub(1).to_be_bytes());
                     buf.extend(&stdout[1..]);
                     buf.extend(process_id.to_be_bytes());
-                    stream.lock().unwrap().write(&buf).unwrap();
+                    stream.write_all(&buf).unwrap();
                     return;
                 }
             }
@@ -213,7 +214,7 @@ pub fn show_dialog_input(stream: Arc<Mutex<TcpStream>>, title: String, message: 
             let mut buf: Vec<u8> = Vec::new();
             buf.push(ClientCodes::RFail as u8);
             buf.extend(process_id.to_be_bytes());
-            stream.lock().unwrap().write(&buf).unwrap();
+            stream.write_all(&buf).unwrap();
             println!("Failed");
         }
     });
@@ -225,7 +226,7 @@ pub fn start_client() {
     if argv.len() == 8 {
         if argv[3] == ARGV_DIALOG {
             let app = gtk4::Application::builder()
-            .application_id("com.werryxgames.rem_admin.alert")
+            .application_id("com.werryxgames.rem_admin.alert".to_owned() + &random_int().to_string())
             .build();
             let win_title = argv[5].clone();
             let text = argv[6].clone();
@@ -267,7 +268,7 @@ pub fn start_client() {
             // .buttons(gtk4::ButtonsType::YesNo)
             // .build().run() == gtk4::ResponseType::Yes));
             let app = gtk4::Application::builder()
-            .application_id("com.werryxgames.rem_admin.confirm")
+            .application_id("com.werryxgames.rem_admin.confirm".to_owned() + &random_int().to_string())
             .build();
             let win_title = argv[5].clone();
             let text = argv[6].clone();
@@ -311,7 +312,7 @@ pub fn start_client() {
         } else if argv[3] == ARGV_DIALOG_INPUT {
             static EXIT_CODE: Mutex<i32> = Mutex::new(1);
             let app = gtk4::Application::builder()
-            .application_id("com.werryxgames.rem_admin.prompt")
+            .application_id("com.werryxgames.rem_admin.prompt".to_owned() + &random_int().to_string())
             .build();
             let win_title = argv[5].clone();
             let text = argv[6].clone();
@@ -357,7 +358,7 @@ pub fn start_client() {
         }
     }
 
-    let stream: Arc<Mutex<TcpStream>>;
+    let stream_m: Arc<Mutex<TcpStream>>;
     let mut started: bool = false;
 
     loop {
@@ -369,16 +370,20 @@ pub fn start_client() {
 
         match TcpStream::connect(HOST) {
             Ok(server) => {
-                stream = Arc::new(Mutex::new(server));
-                stream.lock().unwrap().set_nodelay(true).unwrap();
-                stream.lock().unwrap().set_nonblocking(true).unwrap();
-                println!("Connected to server '{}'", HOST);
+                stream_m = Arc::new(Mutex::new(server));
 
-                let mut msg: Vec<u8> = Vec::new();
-                msg.push(ClientCodes::CAuth as u8);
-                msg.extend(VERSION.to_be_bytes());
-                msg.extend(AUTH_PARTS[0].to_be_bytes());
-                stream.lock().unwrap().write(&msg).unwrap();
+                {
+                    let mut stream = stream_m.lock().unwrap();
+                    stream.set_nodelay(true).unwrap();
+                    stream.set_nonblocking(true).unwrap();
+                    println!("Connected to server '{}'", HOST);
+
+                    let mut msg: Vec<u8> = Vec::new();
+                    msg.push(ClientCodes::CAuth as u8);
+                    msg.extend(VERSION.to_be_bytes());
+                    msg.extend(AUTH_PARTS[0].to_be_bytes());
+                    stream.write_all(&msg).unwrap();
+                }
 
                 let mouse = Mouse::new();
                 let mut enigo = Enigo::new();
@@ -386,8 +391,10 @@ pub fn start_client() {
                 let mut server_code = [0u8; 1];
 
                 loop {
+                    let mut stream = stream_m.lock().unwrap();
+
                     loop {
-                        match stream.lock().unwrap().read_exact(&mut server_code) {
+                        match stream.read_exact(&mut server_code) {
                             Ok(_) => {
                                 break;
                             }
@@ -396,7 +403,7 @@ pub fn start_client() {
                                     continue;
                                 }
 
-                                Err::<(), Error>(err).unwrap();
+                                panic!("{}", err);
                             }
                         };
                     }
@@ -409,16 +416,16 @@ pub fn start_client() {
                         }
                         ServerCodes::SEAuthVersion => {
                             let mut data1 = [0u8; 8];
-                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            stream.read_exact(&mut data1).unwrap();
                             let min_version = u64::from_be_bytes(data1);
                             let mut data2 = [0u8; 8];
-                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            stream.read_exact(&mut data2).unwrap();
                             let max_version = u64::from_be_bytes(data2);
                             println!("Incorrect version {}. Expected from {} to {}", VERSION, min_version, max_version);
                         }
                         ServerCodes::SAuth => {
                             let mut data1 = [0u8; 8];
-                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            stream.read_exact(&mut data1).unwrap();
                             let version = u64::from_be_bytes(data1);
 
                             if version < MIN_SUPPORTED_VERSION || version > MAX_SUPPORTED_VERSION {
@@ -426,21 +433,21 @@ pub fn start_client() {
                                 msg.push(ClientCodes::CEAuthVersion as u8);
                                 msg.extend(MIN_SUPPORTED_VERSION.to_be_bytes());
                                 msg.extend(MAX_SUPPORTED_VERSION.to_be_bytes());
-                                stream.lock().unwrap().write(&msg).unwrap();
+                                stream.write_all(&msg).unwrap();
                             } else {
                                 let mut data2 = [0u8; 8];
-                                stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                                stream.read_exact(&mut data2).unwrap();
                                 let auth_part2 = u64::from_be_bytes(data2);
 
                                 if auth_part2 != AUTH_PARTS[1] {
                                     let msg = [ClientCodes::CEAuthPart as u8; 1];
-                                    stream.lock().unwrap().write(&msg).unwrap();
+                                    stream.write_all(&msg).unwrap();
                                 } else {
                                     let mut msg: Vec<u8> = Vec::new();
                                     msg.push(ClientCodes::CAuthOK as u8);
                                     let value: u128 = get_machine_id();
                                     msg.extend(value.to_be_bytes());
-                                    stream.lock().unwrap().write(&msg).unwrap();
+                                    stream.write_all(&msg).unwrap();
                                     println!("Authorized");
                                     continue;
                                 }
@@ -448,41 +455,41 @@ pub fn start_client() {
                         }
                         ServerCodes::MTest => {
                             let mut buf = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut buf).unwrap();
+                            stream.read_exact(&mut buf).unwrap();
                             let mut msg: Vec<u8> = Vec::new();
                             msg.push(ClientCodes::RTestEcho as u8);
                             msg.extend(buf);
-                            stream.lock().unwrap().write(&msg).unwrap();
+                            stream.write_all(&msg).unwrap();
                         }
                         ServerCodes::MGui => {
                             let mut title_len = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut title_len).unwrap();
+                            stream.read_exact(&mut title_len).unwrap();
                             let mut title_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(title_len) as usize];
-                            stream.lock().unwrap().read_exact(&mut title_bytes).unwrap();
+                            stream.read_exact(&mut title_bytes).unwrap();
                             let mut message_len = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut message_len).unwrap();
+                            stream.read_exact(&mut message_len).unwrap();
                             let mut message_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(message_len) as usize];
-                            stream.lock().unwrap().read_exact(&mut message_bytes).unwrap();
+                            stream.read_exact(&mut message_bytes).unwrap();
                             let title = String::from_utf8(title_bytes).unwrap();
                             let message = String::from_utf8(message_bytes).unwrap();
-                            show_dialog(stream.clone(), title, message);
+                            show_dialog(stream_m.clone(), title, message);
                         }
                         ServerCodes::MGuiYesNo => {
                             let mut title_len = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut title_len).unwrap();
+                            stream.read_exact(&mut title_len).unwrap();
                             let mut title_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(title_len) as usize];
-                            stream.lock().unwrap().read_exact(&mut title_bytes).unwrap();
+                            stream.read_exact(&mut title_bytes).unwrap();
                             let mut message_len = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut message_len).unwrap();
+                            stream.read_exact(&mut message_len).unwrap();
                             let mut message_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(message_len) as usize];
-                            stream.lock().unwrap().read_exact(&mut message_bytes).unwrap();
+                            stream.read_exact(&mut message_bytes).unwrap();
                             let title = String::from_utf8(title_bytes).unwrap();
                             let message = String::from_utf8(message_bytes).unwrap();
-                            show_dialog_yesno(stream.clone(), title, message);
+                            show_dialog_yesno(stream_m.clone(), title, message);
                         }
                         ServerCodes::MAbort => {
                             let mut cmd_id_bytes = [0u8; 8];
-                            stream.lock().unwrap().read_exact(&mut cmd_id_bytes).unwrap();
+                            stream.read_exact(&mut cmd_id_bytes).unwrap();
                             let cmd_id = u64::from_be_bytes(cmd_id_bytes);
                             println!("Request to abort {}", cmd_id);
                             let result = Request::abort(cmd_id);
@@ -493,78 +500,76 @@ pub fn start_client() {
                                 msg.push(ClientCodes::RNotAborted as u8);
                                 msg.extend(cmd_id_bytes);
                                 msg.push(false as u8);
-                            } else {
-                                if result.unwrap() {
+                            } else if result.unwrap() {
                                     msg.push(ClientCodes::RAborted as u8);
                                     msg.extend(cmd_id_bytes);
-                                } else {
-                                    msg.push(ClientCodes::RNotAborted as u8);
-                                    msg.extend(cmd_id_bytes);
-                                    msg.push(true as u8);
-                                }
+                            } else {
+                                msg.push(ClientCodes::RNotAborted as u8);
+                                msg.extend(cmd_id_bytes);
+                                msg.push(true as u8);
                             }
 
-                            stream.lock().unwrap().write(&msg).unwrap();
+                            stream.write_all(&msg).unwrap();
                         }
                         ServerCodes::MMoveCursor => {
                             let mut data1 = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            stream.read_exact(&mut data1).unwrap();
                             let mut data2 = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            stream.read_exact(&mut data2).unwrap();
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
-                            mouse.move_to(x, y);
+                            mouse.move_to(x, y).unwrap();
                         }
                         ServerCodes::MMoveCursorRel => {
                             let mut data1 = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            stream.read_exact(&mut data1).unwrap();
                             let mut data2 = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            stream.read_exact(&mut data2).unwrap();
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
                             let point = mouse.get_position().unwrap();
                             let new_point = (point.x + x, point.y + y);
-                            mouse.move_to(new_point.0, new_point.1);
+                            mouse.move_to(new_point.0, new_point.1).unwrap();
                         }
                         ServerCodes::MTypeKeyboard => {
                             let mut data1 = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            stream.read_exact(&mut data1).unwrap();
                             let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
-                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            stream.read_exact(&mut data2).unwrap();
                             let sequence = String::from_utf8(data2).unwrap();
                             enigo.key_sequence_parse(&sequence);
                         }
                         ServerCodes::MClipboardGet => {
-                            let code = Request::new(None);
+                            let code = Request::add(None);
                             let clipboard = terminal_clipboard::get_string().unwrap();
                             let mut msg: Vec<u8> = Vec::new();
-                            msg.push(ClientCodes::ROKText as u8);
+                            msg.push(ClientCodes::ROkText as u8);
                             msg.extend((clipboard.len() as u32).to_be_bytes());
                             msg.extend(clipboard.as_bytes());
                             msg.extend(code.to_be_bytes());
-                            stream.lock().unwrap().write(&msg).unwrap();
+                            stream.write_all(&msg).unwrap();
                         }
                         ServerCodes::MClipboardSet => {
                             let mut data1 = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut data1).unwrap();
+                            stream.read_exact(&mut data1).unwrap();
                             let mut data2 = vec![0u8; u32::from_be_bytes(data1) as usize];
-                            stream.lock().unwrap().read_exact(&mut data2).unwrap();
+                            stream.read_exact(&mut data2).unwrap();
                             let clipboard = String::from_utf8(data2).unwrap();
                             println!("Content: {}", clipboard);
                             terminal_clipboard::set_string(clipboard).unwrap();
                         }
                         ServerCodes::MGuiInput => {
                             let mut title_len = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut title_len).unwrap();
+                            stream.read_exact(&mut title_len).unwrap();
                             let mut title_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(title_len) as usize];
-                            stream.lock().unwrap().read_exact(&mut title_bytes).unwrap();
+                            stream.read_exact(&mut title_bytes).unwrap();
                             let mut message_len = [0u8; 4];
-                            stream.lock().unwrap().read_exact(&mut message_len).unwrap();
+                            stream.read_exact(&mut message_len).unwrap();
                             let mut message_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(message_len) as usize];
-                            stream.lock().unwrap().read_exact(&mut message_bytes).unwrap();
+                            stream.read_exact(&mut message_bytes).unwrap();
                             let title = String::from_utf8(title_bytes).unwrap();
                             let message = String::from_utf8(message_bytes).unwrap();
-                            show_dialog_input(stream.clone(), title, message);
+                            show_dialog_input(stream_m.clone(), title, message);
                         }
                         _ => {
                             todo!()
@@ -577,8 +582,5 @@ pub fn start_client() {
                 continue;
             }
         };
-
-        stream.lock().unwrap().flush().unwrap();
-        stream.lock().unwrap().shutdown(Shutdown::Both).unwrap();
     }
 }
