@@ -1,5 +1,5 @@
 use std::{net::TcpStream, io::{Write, Read, ErrorKind, self}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
-use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes};
+use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes, command::parse_quotes};
 use enigo::{Enigo, KeyboardControllable};
 use glib::clone;
 use gtk4::{prelude::*, glib::{self, random_int}};
@@ -197,23 +197,127 @@ pub fn show_dialog_input(stream_m: Arc<Mutex<TcpStream>>, title: String, message
             if ncode == 0 {
                 let mut stdout: Vec<u8> = Vec::new();
                 child_m.lock().unwrap().stdout.as_mut().unwrap().read_to_end(&mut stdout).unwrap();
+                let mut stderr: Vec<u8> = Vec::new();
+                child_m.lock().unwrap().stderr.as_mut().unwrap().read_to_end(&mut stderr).unwrap();
 
-                if !stdout.is_empty() {
-                    let mut buf: Vec<u8> = Vec::new();
-                    buf.push(ClientCodes::ROkText as u8);
-                    buf.extend((stdout.len() as u32).saturating_sub(1).to_be_bytes());
-                    buf.extend(&stdout[1..]);
-                    buf.extend(process_id.to_be_bytes());
-                    stream.write_all(&buf).unwrap();
-                    return;
-                }
+                let mut buf: Vec<u8> = Vec::new();
+                buf.push(ClientCodes::RStdOutErr as u8);
+                buf.extend(process_id.to_be_bytes());
+                buf.extend((stdout.len() as u32).to_be_bytes());
+                buf.extend(stdout);
+                buf.extend((stderr.len() as u32).to_be_bytes());
+                buf.extend(stderr);
+                stream.write_all(&buf).unwrap();
+                return;
             }
 
+            let mut stdout: Vec<u8> = Vec::new();
+            child_m.lock().unwrap().stdout.as_mut().unwrap().read_to_end(&mut stdout).unwrap();
+            let mut stderr: Vec<u8> = Vec::new();
+            child_m.lock().unwrap().stderr.as_mut().unwrap().read_to_end(&mut stderr).unwrap();
+
+            let mut buf: Vec<u8> = Vec::new();
+            buf.push(ClientCodes::RStdOutErrFail as u8);
+            buf.extend(process_id.to_be_bytes());
+            buf.extend((stdout.len() as u32).to_be_bytes());
+            buf.extend(stdout);
+            buf.extend((stderr.len() as u32).to_be_bytes());
+            buf.extend(stderr);
+            buf.extend(ncode.to_be_bytes());
+            stream.write_all(&buf).unwrap();
+            return;
+        }
+    });
+}
+
+pub fn execute_command(stream_m: Arc<Mutex<TcpStream>>, cmd: String) {
+    let mut comargs: Vec<String> = Vec::new();
+
+    if parse_quotes(&mut comargs, cmd.clone()) {
+        // Send R_FAIL_TEXT
+        return;
+    }
+
+    if comargs.is_empty() {
+        Request::add(None);
+        // Send R_OK
+        return;
+    }
+
+    let child = Command::new(comargs[0].clone())
+    .args(&comargs[1..])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn().unwrap();
+    let child_m = Arc::new(Mutex::new(child));
+    let process_id = Request::add(Some(child_m.clone()));
+    thread::spawn(move || {
+        let mut code_option;
+
+        loop {
+            code_option = child_m.lock().unwrap().try_wait().unwrap();
+
+            if code_option.is_some() {
+                break;
+            }
+        }
+
+        let code = code_option.unwrap().code();
+        let mut stream = stream_m.lock().unwrap();
+
+        if let Some(ncode) = code {
+            if ncode == 0 {
+                let mut child = child_m.lock().unwrap();
+                let mut stdout: Vec<u8> = Vec::new();
+
+                if let Some(proc_stdout) = child.stdout.as_mut() {
+                    proc_stdout.read_to_end(&mut stdout).unwrap();
+                }
+
+                let mut stderr: Vec<u8> = Vec::new();
+
+                if let Some(proc_stderr) = child.stderr.as_mut() {
+                    proc_stderr.read_to_end(&mut stderr).unwrap();
+                }
+
+                let mut buf: Vec<u8> = Vec::new();
+                buf.push(ClientCodes::RStdOutErr as u8);
+                buf.extend(process_id.to_be_bytes());
+                buf.extend((stdout.len() as u32).to_be_bytes());
+                buf.extend(stdout);
+                buf.extend((stderr.len() as u32).to_be_bytes());
+                buf.extend(stderr);
+                stream.write_all(&buf).unwrap();
+                return;
+            }
+
+            let mut child = child_m.lock().unwrap();
+            let mut stdout: Vec<u8> = Vec::new();
+
+            if let Some(proc_stdout) = child.stdout.as_mut() {
+                proc_stdout.read_to_end(&mut stdout).unwrap();
+            }
+
+            let mut stderr: Vec<u8> = Vec::new();
+
+            if let Some(proc_stderr) = child.stderr.as_mut() {
+                proc_stderr.read_to_end(&mut stderr).unwrap();
+            }
+
+            let mut buf: Vec<u8> = Vec::new();
+            buf.push(ClientCodes::RStdOutErrFail as u8);
+            buf.extend(process_id.to_be_bytes());
+            buf.extend((stdout.len() as u32).to_be_bytes());
+            buf.extend(stdout);
+            buf.extend((stderr.len() as u32).to_be_bytes());
+            buf.extend(stderr);
+            buf.extend(ncode.to_be_bytes());
+            stream.write_all(&buf).unwrap();
+        } else {
             let mut buf: Vec<u8> = Vec::new();
             buf.push(ClientCodes::RFail as u8);
             buf.extend(process_id.to_be_bytes());
             stream.write_all(&buf).unwrap();
-            println!("Failed");
         }
     });
 }
@@ -571,6 +675,14 @@ pub fn start_client() {
                             let title = String::from_utf8(title_bytes).unwrap();
                             let message = String::from_utf8(message_bytes).unwrap();
                             show_dialog_input(stream_m.clone(), title, message);
+                        }
+                        ServerCodes::MShellCommand => {
+                            let mut cmd_len = [0u8; 4];
+                            stream.read_exact(&mut cmd_len).unwrap();
+                            let mut cmd_bytes: Vec<u8> = vec![0u8; u32::from_be_bytes(cmd_len) as usize];
+                            stream.read_exact(&mut cmd_bytes).unwrap();
+                            let cmd = String::from_utf8(cmd_bytes).unwrap();
+                            execute_command(stream_m.clone(), cmd);
                         }
                         _ => {
                             todo!()

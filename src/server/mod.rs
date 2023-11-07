@@ -205,6 +205,45 @@ fn handle_packet(clients: Arc<Mutex<Vec<Client>>>, index: u64, code: ClientCodes
                 stream.read_exact(&mut data3).unwrap();
                 println!("Packet with id {} returned unhandled bytes", cmd_id);
             }
+            ClientCodes::RStdOutErr => {
+                let mut data = [0u8; 8];
+                stream.read_exact(&mut data).unwrap();
+                let cmd_id = u64::from_be_bytes(data);
+                let mut data2 = [0u8; 4];
+                stream.read_exact(&mut data2).unwrap();
+                let vec_len = u32::from_be_bytes(data2);
+                let mut stdout = vec![0u8; vec_len as usize];
+                stream.read_exact(&mut stdout).unwrap();
+                let mut data4 = [0u8; 4];
+                stream.read_exact(&mut data4).unwrap();
+                let vec_len2 = u32::from_be_bytes(data4);
+                let mut stderr = vec![0u8; vec_len2 as usize];
+                stream.read_exact(&mut stderr).unwrap();
+                println!("Packet with id {} returned result", cmd_id);
+                println!("Stdout: {}", String::from_utf8_lossy(&stdout));
+                println!("Stderr: {}", String::from_utf8_lossy(&stderr));
+            }
+            ClientCodes::RStdOutErrFail => {
+                let mut data = [0u8; 8];
+                stream.read_exact(&mut data).unwrap();
+                let cmd_id = u64::from_be_bytes(data);
+                let mut data2 = [0u8; 4];
+                stream.read_exact(&mut data2).unwrap();
+                let vec_len = u32::from_be_bytes(data2);
+                let mut stdout = vec![0u8; vec_len as usize];
+                stream.read_exact(&mut stdout).unwrap();
+                let mut data4 = [0u8; 4];
+                stream.read_exact(&mut data4).unwrap();
+                let vec_len2 = u32::from_be_bytes(data4);
+                let mut stderr = vec![0u8; vec_len2 as usize];
+                stream.read_exact(&mut stderr).unwrap();
+                let mut data6 = [0u8; 4];
+                stream.read_exact(&mut data6).unwrap();
+                let code = u32::from_be_bytes(data6);
+                println!("Packet with id {} failed with code {} and result", cmd_id, code);
+                println!("Stdout: {}", String::from_utf8_lossy(&stdout));
+                println!("Stderr: {}", String::from_utf8_lossy(&stderr));
+            }
             _ => {
                 todo!()
             }

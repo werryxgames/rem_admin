@@ -1,7 +1,7 @@
 use std::{io::{self, Write, ErrorKind, Read}, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
-use crate::{server::Client, ServerCodes, ClientCodes};
+use crate::{server::Client, ServerCodes, ClientCodes, command::parse_quotes};
 
 macro_rules! get_client {
     ($clients: expr, $args: expr, $index: expr, $if_b: expr, $else_b: expr) => {
@@ -22,56 +22,23 @@ macro_rules! get_client {
     };
 }
 
-fn parse_quotes(vec: &mut Vec<String>, args: String) -> bool {
-    let mut esc: bool = false;
-    let mut buf: String = String::new();
-    let mut quote: bool = false;
+macro_rules! get_client_text {
+    ($clients: expr, $args: expr, $index: expr, $if_b: expr, $else_b: expr) => {
+        let mut clients = $clients.lock().unwrap();
+        let mut found: bool = false;
 
-    macro_rules! esc_char {
-        ($cchr: expr, $pchr: expr, $chr: expr, $buf: expr, $esc: expr, $else: expr) => {
-            if $chr == $cchr {
-                $esc = false;
-                $buf.push($pchr);
-            } else {
-                $else
+        for client in clients.iter_mut() {
+            if client.index == $index {
+                $if_b(client, $args);
+                found = true;
+                break;
             }
-        };
-    }
+        }
 
-    for chr in args.chars() {
-        if esc {
-            esc_char!('\\', '\\', chr, buf, esc,
-            esc_char!('n', '\n', chr, buf, esc,
-            esc_char!('r', '\r', chr, buf, esc,
-            esc_char!('t', '\t', chr, buf, esc,
-            esc_char!('\"', '\"', chr, buf, esc,
-            esc_char!(' ', ' ', chr, buf, esc,
-            esc_char!('\t', '\t', chr, buf, esc,
-            esc_char!('\n', '\n', chr, buf, esc,
-            esc_char!('\r', '\r', chr, buf, esc,
-            {
-                esc = true;
-                buf.push('\\');
-                buf.push(chr);
-            }
-            )))))))));
-        } else if chr == '\\' {
-            esc = true;
-        } else if chr == '\"' {
-            quote = !quote;
-        } else if [' ', '\t', '\n', '\r'].contains(&chr) {
-            if quote {
-                buf.push(chr);
-            } else if !buf.is_empty() {
-                vec.push(buf.clone());
-                buf.clear();
-            }
-        } else {
-            buf.push(chr);
+        if !found {
+            $else_b();
         }
     };
-
-    quote
 }
 
 pub fn command_test(client: &mut Client, _args: Vec<String>) {
@@ -338,6 +305,15 @@ pub fn command_prompt(client: &mut Client, args: Vec<String>) {
     client.stream.lock().unwrap().write_all(&msg).unwrap();
 }
 
+pub fn command_cmd(client: &mut Client, cmd: String) {
+    let mut msg = Vec::new();
+    msg.push(ServerCodes::MShellCommand as u8);
+    msg.extend((cmd.len() as u32).to_be_bytes());
+    msg.extend(cmd.as_bytes());
+    client.request();
+    client.stream.lock().unwrap().write_all(&msg).unwrap();
+}
+
 pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
     let mut stdout = io::stdout();
     let stdin = io::stdin();
@@ -349,8 +325,8 @@ pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
         stdout.flush().unwrap();
         stdin.read_line(&mut buf).unwrap();
         let mut comargs: Vec<String> = Vec::new();
-        
-        if parse_quotes(&mut comargs, buf) {
+
+        if parse_quotes(&mut comargs, buf.clone()) {
             println!("Invalid syntax");
             continue;
         }
@@ -359,6 +335,7 @@ pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
             continue;
         }
 
+        let cmd = buf.trim().to_owned() + "\n";
         let com = comargs[0].as_str();
         let args = &comargs[1..];
 
@@ -540,6 +517,16 @@ pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
                 }
 
                 get_client!(clients, args, selected_client, command_prompt, {
+                    println!("Selected client not found")
+                });
+            }
+            "cmd" => {
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client_text!(clients, cmd[4..].to_string(), selected_client, command_cmd, {
                     println!("Selected client not found")
                 });
             }

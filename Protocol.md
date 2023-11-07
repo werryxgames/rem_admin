@@ -1,5 +1,5 @@
 # RemAP - Remote Administration Protocol.
-Version - **1.1**.
+Version - **1.2**.
 
 ## Client packets
 | Name | Code | Description | Arguments |
@@ -18,6 +18,8 @@ Version - **1.1**.
 | R_NOT_ABORTED | 0x0B | Command already executed or wasn't executed | `u64 cmd_id`, `bool executed` |
 | R_INT | 0x0C | Command executed with `u32` code | `u64 cmd_id`, `u32 result` |
 | R_BYTES | 0x0D | Command executed with byte result | `u64 cmd_id`, `Vec<u8> bytes` |
+| R_STD_OUT_ERR | 0x0E | Command executed with STDOUT and STDERR | `u64 cmd_id`, `Vec<u8> stdout`, `Vec<u8> stderr` |
+| R_STD_OUT_ERR_FAIL | 0x0F | Command failed with STDOUT and STDERR | `u64 cmd_id`, `Vec<u8> stdout`, `Vec<u8> stderr`, `u32 code` |
 | C_CONTROL | 0x70 | Set mode of this client from *controlled* to *controller* | `String password` |
 | C_CONTROL_ALL | 0x71 | Send packet to all *controlled* clients | `[u8] packet` |
 | C_CONTROL_LIST | 0x72 | List all *controlled* clients |
@@ -87,8 +89,10 @@ Default *TCP* port is *20900*.
 - [x] **R_ABORTED**
 - [x] **R_BOOL**
 - [x] **R_NOT_ABORTED**
-- [ ] **R_INT**
-- [ ] **R_BYTES**
+- [x] **R_INT**
+- [x] **R_BYTES**
+- [x] **R_STD_OUT_ERR**
+- [x] **R_STD_OUT_ERR_FAIL**
 - [ ] **C_CONTROL**
 - [ ] **C_CONTROL_ALL**
 - [ ] **C_CONTROL_LIST**
@@ -109,7 +113,7 @@ Default *TCP* port is *20900*.
 - [x] **M_CLIPBOARD_GET**
 - [x] **M_CLIPBOARD_SET**
 - [x] **M_GUI_INPUT**
-- [ ] **M_SHELL_COMMAND**
+- [x] **M_SHELL_COMMAND**
 - [ ] **M_GET_SCREEN**
 - [ ] **M_OPEN_BROWSER**
 - [ ] **M_REQUEST_GET**

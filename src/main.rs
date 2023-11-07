@@ -1,5 +1,6 @@
 use std::io::{Error, ErrorKind};
 
+pub mod command;
 #[cfg(feature = "server")]
 pub mod server;
 #[cfg(feature = "client")]
@@ -33,6 +34,8 @@ enum ClientCodes {
     RNotAborted = 0x0B,
     RInt = 0x0C,
     RBytes = 0x0D,
+    RStdOutErr = 0x0E,
+    RStdOutErrFail = 0x0F,
     CControl = 0x70,
     CControlAll = 0x71,
     CControlList = 0x72,
@@ -59,6 +62,8 @@ impl TryFrom<u8> for ClientCodes {
             0x0B => Ok(Self::RNotAborted),
             0x0C => Ok(Self::RInt),
             0x0D => Ok(Self::RBytes),
+            0x0E => Ok(Self::RStdOutErr),
+            0x0F => Ok(Self::RStdOutErrFail),
             0x70 => Ok(Self::CControl),
             0x71 => Ok(Self::CControlAll),
             0x72 => Ok(Self::CControlList),
