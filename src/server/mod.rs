@@ -185,6 +185,26 @@ fn handle_packet(clients: Arc<Mutex<Vec<Client>>>, index: u64, code: ClientCodes
                 let executed = u8::from_be_bytes(data2) != 0;
                 println!("Unhandled abort fail: {}, {}", cmd_id, executed);
             }
+            ClientCodes::RInt => {
+                let mut data = [0u8; 8];
+                stream.read_exact(&mut data).unwrap();
+                let cmd_id = u64::from_be_bytes(data);
+                let mut data2 = [0u8; 4];
+                stream.read_exact(&mut data2).unwrap();
+                let int = u32::from_be_bytes(data2);
+                println!("Packet with id {} returned {}", cmd_id, int);
+            }
+            ClientCodes::RBytes => {
+                let mut data = [0u8; 8];
+                stream.read_exact(&mut data).unwrap();
+                let cmd_id = u64::from_be_bytes(data);
+                let mut data2 = [0u8; 4];
+                stream.read_exact(&mut data2).unwrap();
+                let vec_len = u32::from_be_bytes(data2);
+                let mut data3 = vec![0u8; vec_len as usize];
+                stream.read_exact(&mut data3).unwrap();
+                println!("Packet with id {} returned unhandled bytes", cmd_id);
+            }
             _ => {
                 todo!()
             }

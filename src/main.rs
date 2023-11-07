@@ -1,5 +1,3 @@
-extern crate lazy_static;
-
 use std::io::{Error, ErrorKind};
 
 #[cfg(feature = "server")]
