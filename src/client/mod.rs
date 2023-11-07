@@ -1,9 +1,8 @@
-use std::{net::TcpStream, io::{Write, Read, ErrorKind, self}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
+use std::{net::TcpStream, io::{Write, Read, ErrorKind, self, Cursor}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes, command::parse_quotes};
-use enigo::{Enigo, KeyboardControllable};
+use enigo::{Enigo, KeyboardControllable, MouseControllable};
 use glib::clone;
 use gtk4::{prelude::*, glib::{self, random_int}};
-use mouse_rs::Mouse;
 use rand::Rng;
 
 static HOST: &str = "127.0.0.1:20900";
@@ -12,7 +11,7 @@ static ARGV_DIALOG: &str = "Zk62lYNU1paEiNxk5DVu";
 static ARGV_DIALOG_YESNO: &str = "dxvYc4DVJnBetKI4ImyE";
 static ARGV_DIALOG_INPUT: &str = "7M52jCHyOtwbH4MQa4vA";
 static REQUESTS: Mutex<Vec<Request>> = Mutex::new(Vec::new());
-static REQUEST_ID: Mutex<u64> = Mutex::new(0);
+static REQUEST_ID: Mutex<u64> = Mutex::new(1);
 
 pub struct Request {
     pub process: Option<Arc<Mutex<Child>>>,
@@ -489,7 +488,6 @@ pub fn start_client() {
                     stream.write_all(&msg).unwrap();
                 }
 
-                let mouse = Mouse::new();
                 let mut enigo = Enigo::new();
 
                 let mut server_code = [0u8; 1];
@@ -514,6 +512,7 @@ pub fn start_client() {
     
                     let mut stream = stream_m.lock().unwrap();
                     let code: ServerCodes = server_code[0].try_into().unwrap();
+                    let screen = screenshots::Screen::new(&screenshots::display_info::DisplayInfo::from_point(0, 0).unwrap());
 
                     match code {
                         ServerCodes::SEAuthPart => {
@@ -623,7 +622,7 @@ pub fn start_client() {
                             stream.read_exact(&mut data2).unwrap();
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
-                            mouse.move_to(x, y).unwrap();
+                            enigo.mouse_move_to(x, y);
                         }
                         ServerCodes::MMoveCursorRel => {
                             let mut data1 = [0u8; 4];
@@ -632,9 +631,7 @@ pub fn start_client() {
                             stream.read_exact(&mut data2).unwrap();
                             let x = i32::from_be_bytes(data1);
                             let y = i32::from_be_bytes(data2);
-                            let point = mouse.get_position().unwrap();
-                            let new_point = (point.x + x, point.y + y);
-                            mouse.move_to(new_point.0, new_point.1).unwrap();
+                            enigo.mouse_move_relative(x, y);
                         }
                         ServerCodes::MTypeKeyboard => {
                             let mut data1 = [0u8; 4];
@@ -683,6 +680,18 @@ pub fn start_client() {
                             stream.read_exact(&mut cmd_bytes).unwrap();
                             let cmd = String::from_utf8(cmd_bytes).unwrap();
                             execute_command(stream_m.clone(), cmd);
+                        }
+                        ServerCodes::MGetScreen => {
+                            let screenshot = screen.capture().unwrap();
+                            let mut msg: Vec<u8> = vec![ClientCodes::RBytes as u8];
+                            msg.extend(0u64.to_be_bytes());
+                            let mut image: Vec<u8> = Vec::new();
+                            let mut cursor = Cursor::new(&mut image);
+                            screenshot.write_to(&mut cursor, screenshots::image::ImageOutputFormat::Png).unwrap();
+                            msg.extend((image.len() as u32).to_be_bytes());
+                            msg.extend(image);
+                            stream.write_all(&msg).unwrap();
+                            println!("Written");
                         }
                         _ => {
                             todo!()

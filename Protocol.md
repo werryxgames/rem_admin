@@ -114,7 +114,7 @@ Default *TCP* port is *20900*.
 - [x] **M_CLIPBOARD_SET**
 - [x] **M_GUI_INPUT**
 - [x] **M_SHELL_COMMAND**
-- [ ] **M_GET_SCREEN**
+- [x] **M_GET_SCREEN**
 - [ ] **M_OPEN_BROWSER**
 - [ ] **M_REQUEST_GET**
 - [ ] **M_REQUEST_POST**
