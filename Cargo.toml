@@ -24,4 +24,4 @@ enigo = "0.1"
 terminal-clipboard = "0.4"
 base64_light = "0.1"
 scrap = "0.5"
-image = "0.24"
+jpeg-encoder = { version = "0.6", features = ["std", "simd"] }

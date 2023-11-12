@@ -369,8 +369,8 @@ pub fn command_screenshot(client: &mut Client, args: Vec<String>) {
 
     let mut path = args[0].clone();
 
-    if !path.ends_with(".png") {
-        path.push_str(".png");
+    if !path.ends_with(".jpg") {
+        path.push_str(".jpg");
     }
 
     fs::File::create(path.clone()).unwrap().write_all(&data4).unwrap();

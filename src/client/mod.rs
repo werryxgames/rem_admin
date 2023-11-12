@@ -3,6 +3,7 @@ use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, C
 use enigo::{Enigo, KeyboardControllable, MouseControllable};
 use glib::clone;
 use gtk4::{prelude::*, glib::{self, random_int}};
+use jpeg_encoder::{Encoder, ColorType};
 use rand::Rng;
 
 static HOST: &str = "127.0.0.1:20900";
@@ -690,17 +691,13 @@ pub fn start_client() {
                                 frame.push(pixel[2]);
                                 frame.push(pixel[1]);
                                 frame.push(pixel[0]);
-                                frame.push(pixel[3]);
                             }
 
-                            let img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
-                                width,
-                                height,
-                                frame,
-                            ).unwrap();
+                            println!("Took screenshot: {} bytes", frame.len());
                             let mut vec: Vec<u8> = Vec::new();
-                            let mut cursor = Cursor::new(&mut vec);
-                            img.write_to(&mut cursor, image::ImageFormat::Png).unwrap();
+                            let encoder = Encoder::new(&mut vec, 80);
+                            encoder.encode(&frame, width as u16, height as u16, ColorType::Rgb).unwrap();
+                            println!("Encoded");
                             let mut msg: Vec<u8> = vec![ClientCodes::RBytes as u8];
                             msg.extend(0u64.to_be_bytes());
                             let len = vec.len();
