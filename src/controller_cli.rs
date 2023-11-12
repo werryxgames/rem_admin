@@ -1,4 +1,4 @@
-use std::{io::{self, Write, ErrorKind, Read, Cursor}, sync::{Arc, Mutex}};
+use std::{io::{self, Write, ErrorKind, Read, Error}, sync::{Arc, Mutex}, fs};
 use rand::{thread_rng, Rng};
 
 use crate::{server::Client, ServerCodes, ClientCodes, command::parse_quotes};
@@ -344,45 +344,36 @@ pub fn command_screenshot(client: &mut Client, args: Vec<String>) {
     let mut data3 = [0u8; 4];
     stream.read_exact(&mut data3).unwrap();
     let image_length = u32::from_be_bytes(data3);
+    println!("Image received with length {} bytes", image_length);
     let mut data4 = vec![0u8; image_length as usize];
+    let mut image_pos: u32 = 0;
 
     loop {
-        if let Err(err) = stream.read_exact(&mut data4) {
-            if err.kind() == ErrorKind::WouldBlock {
-                continue;
-            }
+        while image_pos < image_length {
+            let read_result = stream.read(&mut data4[image_pos as usize..]);
 
-            panic!("{}", err);
+            if let Ok(add) = read_result {
+                image_pos += add as u32;
+            } else if let Err(err) = read_result {
+                if err.kind() == ErrorKind::WouldBlock {
+                    continue;
+                }
+
+                panic!("{}", err);
+            }
         }
 
+        // println!("Read OK: {}", data4.len());
         break;
     }
 
-    let image = screenshots::image::io::Reader::new(Cursor::new(data4)).with_guessed_format().unwrap().decode().unwrap();
-    // let image = screenshots::image::load_from_memory(&data4).unwrap();
-    let mut path = args[0].to_lowercase();
+    let mut path = args[0].clone();
 
-    if path.ends_with(".jpg") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Jpeg).unwrap();
-    } else if path.ends_with(".png") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Png).unwrap();
-    } else if path.ends_with(".bmp") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Bmp).unwrap();
-    } else if path.ends_with(".ico") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Ico).unwrap();
-    } else if path.ends_with(".webp") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::WebP).unwrap();
-    } else if path.ends_with(".gif") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Gif).unwrap();
-    } else if path.ends_with(".avif") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Avif).unwrap();
-    } else if path.ends_with(".tiff") {
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Tiff).unwrap();
-    } else {
+    if !path.ends_with(".png") {
         path.push_str(".png");
-        image.save_with_format(path.clone(), screenshots::image::ImageFormat::Png).unwrap();
     }
 
+    fs::File::create(path.clone()).unwrap().write_all(&data4).unwrap();
     println!("Image saved in '{}'", path);
 }
 

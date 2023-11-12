@@ -512,7 +512,7 @@ pub fn start_client() {
     
                     let mut stream = stream_m.lock().unwrap();
                     let code: ServerCodes = server_code[0].try_into().unwrap();
-                    let screen = screenshots::Screen::new(&screenshots::display_info::DisplayInfo::from_point(0, 0).unwrap());
+                    let mut screen = scrap::Capturer::new(scrap::Display::primary().unwrap()).unwrap();
 
                     match code {
                         ServerCodes::SEAuthPart => {
@@ -682,16 +682,32 @@ pub fn start_client() {
                             execute_command(stream_m.clone(), cmd);
                         }
                         ServerCodes::MGetScreen => {
-                            let screenshot = screen.capture().unwrap();
+                            let width = screen.width() as u32;
+                            let height = screen.height() as u32;
+                            let mut frame: Vec<u8> = vec![];
+
+                            for pixel in screen.frame().unwrap().chunks_exact(4) {
+                                frame.push(pixel[2]);
+                                frame.push(pixel[1]);
+                                frame.push(pixel[0]);
+                                frame.push(pixel[3]);
+                            }
+
+                            let img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
+                                width,
+                                height,
+                                frame,
+                            ).unwrap();
+                            let mut vec: Vec<u8> = Vec::new();
+                            let mut cursor = Cursor::new(&mut vec);
+                            img.write_to(&mut cursor, image::ImageFormat::Png).unwrap();
                             let mut msg: Vec<u8> = vec![ClientCodes::RBytes as u8];
                             msg.extend(0u64.to_be_bytes());
-                            let mut image: Vec<u8> = Vec::new();
-                            let mut cursor = Cursor::new(&mut image);
-                            screenshot.write_to(&mut cursor, screenshots::image::ImageOutputFormat::Png).unwrap();
-                            msg.extend((image.len() as u32).to_be_bytes());
-                            msg.extend(image);
+                            let len = vec.len();
+                            msg.extend((len as u32).to_be_bytes());
+                            msg.extend(vec);
                             stream.write_all(&msg).unwrap();
-                            println!("Written");
+                            println!("Written {} bytes", len);
                         }
                         _ => {
                             todo!()
