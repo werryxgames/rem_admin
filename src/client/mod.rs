@@ -1,4 +1,4 @@
-use std::{net::TcpStream, io::{Write, Read, ErrorKind, self, Cursor}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
+use std::{net::TcpStream, io::{Write, Read, ErrorKind, self}, thread::{sleep, self}, time::Duration, env, process::{Command, Child, exit, Stdio}, sync::{Mutex, Arc}, fs};
 use crate::{AUTH_PARTS, VERSION, MIN_SUPPORTED_VERSION, MAX_SUPPORTED_VERSION, ClientCodes, ServerCodes, command::parse_quotes};
 use enigo::{Enigo, KeyboardControllable, MouseControllable};
 use glib::clone;
@@ -225,7 +225,6 @@ pub fn show_dialog_input(stream_m: Arc<Mutex<TcpStream>>, title: String, message
             buf.extend(stderr);
             buf.extend(ncode.to_be_bytes());
             stream.write_all(&buf).unwrap();
-            return;
         }
     });
 }
@@ -314,8 +313,7 @@ pub fn execute_command(stream_m: Arc<Mutex<TcpStream>>, cmd: String) {
             buf.extend(ncode.to_be_bytes());
             stream.write_all(&buf).unwrap();
         } else {
-            let mut buf: Vec<u8> = Vec::new();
-            buf.push(ClientCodes::RFail as u8);
+            let mut buf: Vec<u8> = vec![ClientCodes::RFail as u8];
             buf.extend(process_id.to_be_bytes());
             stream.write_all(&buf).unwrap();
         }
@@ -693,18 +691,15 @@ pub fn start_client() {
                                 frame.push(pixel[0]);
                             }
 
-                            println!("Took screenshot: {} bytes", frame.len());
                             let mut vec: Vec<u8> = Vec::new();
-                            let encoder = Encoder::new(&mut vec, 80);
+                            let encoder = Encoder::new(&mut vec, 100);
                             encoder.encode(&frame, width as u16, height as u16, ColorType::Rgb).unwrap();
-                            println!("Encoded");
                             let mut msg: Vec<u8> = vec![ClientCodes::RBytes as u8];
                             msg.extend(0u64.to_be_bytes());
                             let len = vec.len();
                             msg.extend((len as u32).to_be_bytes());
                             msg.extend(vec);
                             stream.write_all(&msg).unwrap();
-                            println!("Written {} bytes", len);
                         }
                         _ => {
                             todo!()

